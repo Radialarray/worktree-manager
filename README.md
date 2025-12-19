@@ -110,20 +110,6 @@ wt list --all           # List worktrees across all repos
 wt interactive --all    # Interactive picker across all repos
 ```
 
-### Editor Configuration
-
-Set your preferred editor via environment variable:
-
-```bash
-export EDITOR=code     # VS Code
-export EDITOR=nvim     # Neovim
-export EDITOR=zed      # Zed
-```
-
-Supported editors:
-- **Terminal**: nvim, vim, nano, micro, emacs, helix, kakoune
-- **GUI**: code (VS Code), cursor, zed
-
 ## AI Agent Integration
 
 `wt` is designed for AI coding agents with JSON output and non-interactive modes.
@@ -195,7 +181,7 @@ auto_discovery:
 
 - **FZF appearance**: Edit config.yaml to customize height, layout, preview window
 - **Auto-discovery**: Use `wt config <paths...>` or edit `auto_discovery.paths`
-- **Editor**: Set `$EDITOR` environment variable
+- **Editor**: Ctrl-E uses `$EDITOR` environment variable (e.g., `export EDITOR=nvim`)
 
 ## Troubleshooting
 

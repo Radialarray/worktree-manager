@@ -57,10 +57,12 @@ A small shell function (zsh) interprets this and performs `cd` / editor launch.
 ## Commands
 - `wt` / `wt interactive` (fzf picker)
 - `wt list [--json] [--all]`
-- `wt add <branch> [-p <path>] [--track <remote>]`
-- `wt remove <worktree|--path <path>> [--force]`
-- `wt prune`
-- `wt config (init|show|set-editor|set-discovery-paths ...)`
+- `wt add <branch> [-p <path>] [--json] [--quiet]`
+- `wt remove <target> [--force] [--json] [--quiet]`
+- `wt prune [--json] [--quiet]`
+- `wt config [paths...]` (configure auto-discovery search paths)
+- `wt agent (onboard|context|status)` (AI agent commands)
+- `wt init [shell]` (generate shell integration)
 
 ## Non-goals (initially)
 - embedding a fuzzy finder (we rely on `fzf`)
