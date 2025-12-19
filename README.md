@@ -252,6 +252,70 @@ wt list --json | jq '.[] | select(.branch | contains("feature"))'
 wt list --json | jq 'length'
 ```
 
+## Integration with Coding Agents
+
+`wt` is designed to be agent-friendly with JSON output and non-interactive modes. For AI coding agents like OpenCode, you can create custom tools that wrap `wt` commands.
+
+### OpenCode Custom Tools
+
+Create `.opencode/tool/worktree.ts` in your project:
+
+```typescript
+import { tool } from "@opencode-ai/plugin"
+
+export const list = tool({
+  description: "List git worktrees in current repository",
+  args: {
+    all: tool.schema.boolean().optional().describe("List across all discovered repos"),
+  },
+  async execute(args) {
+    const flags = args.all ? '--all' : ''
+    const result = await Bun.$`wt list ${flags} --json`.text()
+    return result.trim()
+  },
+})
+
+export const context = tool({
+  description: "Get current worktree context",
+  args: {},
+  async execute() {
+    return await Bun.$`wt agent context`.text()
+  },
+})
+
+export const create = tool({
+  description: "Create a new git worktree for a branch",
+  args: {
+    branch: tool.schema.string().describe("Branch name"),
+    path: tool.schema.string().optional().describe("Custom path for worktree"),
+  },
+  async execute(args) {
+    const pathFlag = args.path ? `-p ${args.path}` : ''
+    const result = await Bun.$`wt add ${args.branch} ${pathFlag} --json --quiet`.text()
+    return result.trim()
+  },
+})
+```
+
+This allows agents to use `wt` commands as native tools with proper types and error handling.
+
+### Agent-Specific Commands
+
+For AI agents, `wt` provides specialized commands:
+
+```bash
+# Get compact workflow reference for agent context
+wt agent onboard
+
+# Get full worktree context with status
+wt agent context [--json]
+
+# Get minimal status for frequent polling
+wt agent status [--json]
+```
+
+See [AGENTS.md](AGENTS.md) for comprehensive agent integration documentation.
+
 ## Troubleshooting
 
 ### `fzf: command not found`
