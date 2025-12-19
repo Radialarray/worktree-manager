@@ -1,5 +1,6 @@
 mod cli;
 mod git;
+mod preview;
 mod process;
 mod worktree;
 
@@ -26,7 +27,7 @@ fn run() -> Result<()> {
         Command::Add { .. } => anyhow::bail!("add not implemented yet"),
         Command::Remove { .. } => anyhow::bail!("remove not implemented yet"),
         Command::Prune => anyhow::bail!("prune not implemented yet"),
-        Command::Preview { .. } => anyhow::bail!("preview not implemented yet"),
+        Command::Preview { path } => crate::preview::print_preview(std::path::Path::new(&path)),
         Command::Config { .. } => anyhow::bail!("config not implemented yet"),
     }
 }
