@@ -1,443 +1,280 @@
-# worktree-manager (wt)
+# wt - Git Worktree Manager
 
-A fast, intuitive CLI tool for managing Git worktrees with fzf-powered interactive selection. Quickly switch between worktrees, create new ones, and clean up stale branches—all from the command line.
+A fast, intuitive CLI for managing Git worktrees. Built for both humans (interactive fzf picker) and AI agents (JSON output, non-interactive mode).
 
 ## Features
 
-- **Interactive Worktree Picker**: Use fzf to quickly navigate and select worktrees
-- **Easy Worktree Management**: Create, remove, and list worktrees with simple commands
-- **Shell Integration**: Seamlessly change directories or open worktrees in your editor
-- **Auto-Discovery**: Automatically discover and manage worktrees across multiple repositories
-- **JSON Output**: Machine-readable output for scripting and automation
-- **Configurable**: Customize editor, fzf layout, discovery paths, and more
-- **Fast & Lightweight**: Written in Rust for performance and minimal dependencies
+- **Interactive Picker** - fzf-powered navigation with live preview
+- **Shell Integration** - Press Enter to cd, Ctrl-E to open in editor
+- **Agent-Friendly** - JSON output, `--quiet` mode, specialized agent commands
+- **Multi-Repo Support** - Discover and manage worktrees across projects
+- **Simple & Fast** - Written in Rust, minimal configuration
 
 ## Installation
 
 ### Prerequisites
 
-- **Git** (2.7.0+)
-- **fzf** (for interactive selection) - [Install fzf](https://github.com/junegunn/fzf#installation)
-- **Rust** (1.70+) - [Install Rust](https://rustup.rs/)
+- Git 2.7.0+
+- [fzf](https://github.com/junegunn/fzf#installation) (for interactive mode)
+- Rust 1.70+ (to build from source)
 
-### Build from Source
+### From Source
 
 ```bash
 git clone https://github.com/yourusername/worktree-manager.git
 cd worktree-manager
 cargo install --path .
-wt init
+wt init  # Set up shell integration
 ```
-
-The `wt init` command auto-detects your shell and offers to add the integration to your config file.
 
 ### Shell Integration
 
-Shell integration is required for the `cd` and `edit` actions in interactive mode. If you skipped `wt init` during installation or prefer manual setup:
+Required for interactive mode (`cd` and editor actions):
 
 ```bash
 # Auto-setup (recommended)
 wt init
 
-# Or manual setup:
-eval "$(wt init zsh)"   # add to ~/.zshrc
-eval "$(wt init bash)"  # add to ~/.bashrc
-wt init fish | source   # add to ~/.config/fish/config.fish
+# Manual setup
+eval "$(wt init zsh)"   # Add to ~/.zshrc
+eval "$(wt init bash)"  # Add to ~/.bashrc
+wt init fish | source   # Add to ~/.config/fish/config.fish
 ```
 
-Shell integration enables:
-- **Enter**: Change directory to the selected worktree
-- **Ctrl-E**: Open the worktree in your configured editor
+Reload your shell after installation:
+```bash
+source ~/.zshrc  # or ~/.bashrc, or open new terminal
+```
 
-## Usage
-
-### Interactive Mode (Default)
-
-Simply type `wt` to launch the interactive picker:
+## Quick Start
 
 ```bash
-# Pick from current repository's worktrees
+# Interactive picker (requires shell integration)
 wt
 
-# Pick from all discovered repositories
-wt interactive --all
-```
-
-The fzf interface shows:
-- **Branch name** on the left
-- **Worktree path** on the right
-- **Preview pane** showing commit info and status
-
-**Keyboard shortcuts:**
-- **Enter**: Change directory to the selected worktree
-- **Ctrl-E**: Open the worktree in your editor
-- **Esc/Ctrl-C**: Cancel
-
-### List Worktrees
-
-```bash
-# List worktrees in the current repository
+# List all worktrees
 wt list
 
-# List worktrees across all discovered repositories
-wt list --all
+# Create new worktree
+wt add feature-branch
 
-# Get JSON output (useful for scripting)
-wt list --json
-wt list --all --json
-```
+# Remove worktree
+wt remove feature-branch
 
-Example output:
-```
-main         /path/to/repo/main
-feature-x    /path/to/repo/feature-x
-bugfix       /path/to/repo/bugfix
-```
-
-### Add Worktree
-
-```bash
-# Create a new worktree for a branch (auto-detects path)
-wt add feature-new
-
-# Create worktree at a specific path
-wt add feature-new -p ~/work/custom-path
-
-# Create worktree tracking a remote branch
-wt add feature-new --track origin
-```
-
-### Remove Worktree
-
-```bash
-# Remove a worktree (by branch name or path) - prompts for confirmation
-wt remove feature-old
-
-# Force remove without confirmation
-wt remove feature-old --force
-```
-
-### Prune Stale Worktrees
-
-Clean up worktrees that have been deleted or are no longer accessible:
-
-```bash
+# Clean up stale worktrees
 wt prune
 ```
 
-### Configuration
+## Usage
 
-#### Initialize Config
-
-Create a default configuration file:
+### Interactive Mode
 
 ```bash
-wt config init
+wt                    # Pick from current repo
+wt interactive --all  # Pick from all configured repos
 ```
 
-This creates `~/.config/worktree-manager/config.yaml` if it doesn't exist.
+**Keyboard shortcuts:**
+- **Enter** - Change to selected worktree
+- **Ctrl-E** - Open worktree in `$EDITOR`
+- **Esc** - Cancel
 
-#### View Current Config
+### CLI Commands
 
 ```bash
-wt config show
+# List worktrees
+wt list              # Current repo
+wt list --all        # All discovered repos
+wt list --json       # Machine-readable output
+
+# Add worktree
+wt add feature-x                # Auto-detect path
+wt add feature-x -p ~/custom    # Custom path
+wt add feature-x --track origin # Track remote
+
+# Remove worktree
+wt remove feature-x         # With confirmation
+wt remove feature-x --force # Skip confirmation
+
+# Prune stale worktrees
+wt prune
 ```
 
-Shows the effective configuration with all current settings.
+### Multi-Repo Discovery
 
-#### Set Default Editor
+Configure paths to search for repositories:
 
 ```bash
-wt config set-editor nvim
-wt config set-editor code
-wt config set-editor emacs
+wt config ~/projects ~/work
+wt list --all           # List worktrees across all repos
+wt interactive --all    # Interactive picker across all repos
 ```
 
-#### Set Auto-Discovery Paths
+### Editor Configuration
 
-Configure directories where wt should search for git repositories:
+Set your preferred editor via environment variable:
 
 ```bash
-wt config set-discovery-paths ~/projects ~/work ~/.config
+export EDITOR=code     # VS Code
+export EDITOR=nvim     # Neovim
+export EDITOR=zed      # Zed
 ```
 
-## Configuration File
+Supported editors:
+- **Terminal**: nvim, vim, nano, micro, emacs, helix, kakoune
+- **GUI**: code (VS Code), cursor, zed
 
-The configuration file is located at `~/.config/worktree-manager/config.yaml`.
+## AI Agent Integration
 
-### Example Configuration
+`wt` is designed for AI coding agents with JSON output and non-interactive modes.
+
+### Agent Commands
+
+```bash
+# Get onboarding documentation (~500 tokens)
+wt agent onboard
+
+# Get full worktree context
+wt agent context [--json]
+
+# Get minimal status (for frequent checks)
+wt agent status [--json]
+```
+
+### Agent Best Practices
+
+- Always use `--json` for machine-readable output
+- Use `--quiet` to suppress interactive prompts
+- Use `--force` with `remove` to skip confirmations
+- Run `wt agent context` at session start
+
+See [AGENTS.md](AGENTS.md) for comprehensive agent integration documentation.
+
+### Example: OpenCode Custom Tool
+
+Create `.opencode/tool/worktree.ts`:
+
+```typescript
+import { tool } from "@opencode-ai/plugin"
+
+export const list = tool({
+  description: "List git worktrees",
+  args: {},
+  async execute() {
+    return await Bun.$`wt list --json`.text()
+  },
+})
+
+export const create = tool({
+  description: "Create worktree for branch",
+  args: { branch: tool.schema.string() },
+  async execute(args) {
+    return await Bun.$`wt add ${args.branch} --json --quiet`.text()
+  },
+})
+```
+
+## Configuration
+
+Configuration file: `~/.config/worktree-manager/config.yaml`
+
+### Default Configuration
 
 ```yaml
 version: "1.0.0"
-editor: nvim
 fzf:
   height: "40%"
   layout: reverse
   preview_window: "right:60%"
 auto_discovery:
   enabled: true
-  paths:
-    - ~/projects
-    - ~/work
-    - ~/.config
+  paths: []
 ```
 
-### Configuration Options
+### Customization
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `version` | string | `1.0.0` | Config file version |
-| `editor` | string | `nvim` | Default editor for opening worktrees (e.g., `code`, `vim`, `emacs`) |
-| `fzf.height` | string | `40%` | Height of fzf window (percentage or fixed lines) |
-| `fzf.layout` | string | `reverse` | fzf layout mode (`default`, `reverse`, `reverse-list`) |
-| `fzf.preview_window` | string | `right:60%` | Preview pane position and size |
-| `auto_discovery.enabled` | boolean | `true` | Enable automatic repository discovery |
-| `auto_discovery.paths` | array | `[]` | Directories to search for repositories (empty = current dir only) |
-
-### FZF Layout Options
-
-- `default`: Normal top-to-bottom layout
-- `reverse`: Bottom-to-top layout with preview on right
-- `reverse-list`: Reverse list layout
-
-## Examples
-
-### Workflow: Create and Switch to a New Worktree
-
-```bash
-# Create a new feature branch worktree
-wt add my-feature
-
-# Interactive picker will show it
-wt
-# Select it and press Enter to cd into it
-```
-
-### Workflow: List and Remove Old Worktrees
-
-```bash
-# See all current worktrees
-wt list --all
-
-# Remove a worktree (with confirmation)
-wt remove old-feature
-
-# Or force remove
-wt remove old-feature --force
-
-# Clean up stale entries
-wt prune
-```
-
-### Workflow: Use with Multiple Repositories
-
-```bash
-# Configure discovery paths to include multiple projects
-wt config set-discovery-paths ~/work ~/personal ~/.config
-
-# Now list all worktrees across all repos
-wt list --all
-
-# Pick from any discovered repository
-wt interactive --all
-```
-
-### Workflow: Scripting with JSON
-
-```bash
-# Get all worktrees as JSON for processing
-wt list --json | jq '.[] | select(.branch | contains("feature"))'
-
-# Count worktrees
-wt list --json | jq 'length'
-```
-
-## Integration with Coding Agents
-
-`wt` is designed to be agent-friendly with JSON output and non-interactive modes. For AI coding agents like OpenCode, you can create custom tools that wrap `wt` commands.
-
-### OpenCode Custom Tools
-
-Create `.opencode/tool/worktree.ts` in your project:
-
-```typescript
-import { tool } from "@opencode-ai/plugin"
-
-export const list = tool({
-  description: "List git worktrees in current repository",
-  args: {
-    all: tool.schema.boolean().optional().describe("List across all discovered repos"),
-  },
-  async execute(args) {
-    const flags = args.all ? '--all' : ''
-    const result = await Bun.$`wt list ${flags} --json`.text()
-    return result.trim()
-  },
-})
-
-export const context = tool({
-  description: "Get current worktree context",
-  args: {},
-  async execute() {
-    return await Bun.$`wt agent context`.text()
-  },
-})
-
-export const create = tool({
-  description: "Create a new git worktree for a branch",
-  args: {
-    branch: tool.schema.string().describe("Branch name"),
-    path: tool.schema.string().optional().describe("Custom path for worktree"),
-  },
-  async execute(args) {
-    const pathFlag = args.path ? `-p ${args.path}` : ''
-    const result = await Bun.$`wt add ${args.branch} ${pathFlag} --json --quiet`.text()
-    return result.trim()
-  },
-})
-```
-
-This allows agents to use `wt` commands as native tools with proper types and error handling.
-
-### Agent-Specific Commands
-
-For AI agents, `wt` provides specialized commands:
-
-```bash
-# Get compact workflow reference for agent context
-wt agent onboard
-
-# Get full worktree context with status
-wt agent context [--json]
-
-# Get minimal status for frequent polling
-wt agent status [--json]
-```
-
-See [AGENTS.md](AGENTS.md) for comprehensive agent integration documentation.
+- **FZF appearance**: Edit config.yaml to customize height, layout, preview window
+- **Auto-discovery**: Use `wt config <paths...>` or edit `auto_discovery.paths`
+- **Editor**: Set `$EDITOR` environment variable
 
 ## Troubleshooting
 
-### `fzf: command not found`
+### Interactive mode doesn't change directory
 
-Make sure fzf is installed and in your PATH:
+Ensure shell integration is installed and loaded:
 
 ```bash
-# macOS with Homebrew
+type wt
+# Should show "wt is a shell function", not "wt is /path/to/binary"
+```
+
+If not, run `wt init` and reload your shell.
+
+### fzf not found
+
+Install fzf for your system:
+
+```bash
+# macOS
 brew install fzf
 
-# Ubuntu/Debian
+# Ubuntu/Debian  
 apt-get install fzf
 
 # Arch
 pacman -S fzf
-
-# Manual installation
-git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
-~/.fzf/install
 ```
 
-### Interactive Mode Doesn't Change Directory
+### Editor doesn't open with Ctrl-E
 
-Make sure you've installed the shell wrapper function (see [Shell Integration](#shell-integration)).
-
-```bash
-# Test the wrapper is loaded
-type wt
-
-# Should show it's a function, not a binary
-```
-
-### "No Worktrees Found"
-
-Ensure your current directory or configured discovery paths contain valid git repositories with worktrees:
+Set your `$EDITOR` environment variable:
 
 ```bash
-# Check current repo
-git worktree list
-
-# Check if wt can find repos
-wt list
-```
-
-### Config File Issues
-
-Check that your config file is valid YAML:
-
-```bash
-wt config show
-
-# Should display the current configuration without errors
+export EDITOR=nvim  # Add to ~/.zshrc or ~/.bashrc
 ```
 
 ## Development
 
-### Building
-
 ```bash
-# Debug build
+# Build
 cargo build
-
-# Release build (optimized)
 cargo build --release
-```
 
-### Testing
-
-```bash
-# Run all tests
+# Test
 cargo test
+cargo test <test_name>
 
-# Run a specific test
-cargo test test_name
-
-# Run with output
-cargo test -- --nocapture
-```
-
-### Linting & Formatting
-
-```bash
-# Format code
+# Format & lint
 cargo fmt
-
-# Check with clippy
 cargo clippy --all-targets --all-features -- -D warnings
+
+# Reinstall after changes
+./reinstall.sh
 ```
 
-## Architecture
+## Project Structure
 
-The tool is organized into modular components:
-
-- **cli.rs**: Command-line interface definition
-- **init.rs**: Shell integration code generation (`wt init <shell>`)
-- **interactive.rs**: Interactive fzf-based picker
-- **git.rs**: Git operations and worktree listing
-- **config.rs**: Configuration file management
-- **add.rs**: Create new worktrees
-- **remove.rs**: Delete worktrees
-- **prune.rs**: Clean up stale worktrees
-- **list.rs**: List worktrees with optional JSON output
-- **discovery.rs**: Auto-discovery of git repositories
-- **fzf.rs**: fzf integration and process handling
-- **process.rs**: External process utilities
+- `src/cli.rs` - Command-line interface
+- `src/interactive.rs` - fzf-based picker
+- `src/git.rs` - Git worktree operations
+- `src/add.rs`, `src/remove.rs`, `src/prune.rs`, `src/list.rs` - Core commands
+- `src/agent.rs` - Agent-specific commands
+- `src/init.rs` - Shell integration generation
+- `src/config.rs` - Configuration management
+- `src/discovery.rs` - Multi-repo discovery
 
 ## Contributing
 
-Contributions are welcome! Please ensure:
+Contributions welcome! Please:
 
-1. Code is formatted with `cargo fmt`
-2. All tests pass: `cargo test`
-3. No clippy warnings: `cargo clippy --all-targets --all-features -- -D warnings`
-4. Commits follow conventional commit style
-5. Add tests for new functionality
-
-## License
-
-[Add your license here]
+1. Format with `cargo fmt`
+2. Pass tests: `cargo test`
+3. Fix clippy warnings: `cargo clippy`
+4. Follow conventional commit style
+5. Add tests for new features
 
 ## See Also
 
-- [git-worktree Documentation](https://git-scm.com/docs/git-worktree)
+- [Git Worktree Documentation](https://git-scm.com/docs/git-worktree)
 - [fzf](https://github.com/junegunn/fzf)
-- [Other worktree tools](https://github.com/topics/git-worktree)
+- [AGENTS.md](AGENTS.md) - AI agent integration guide
