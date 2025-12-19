@@ -11,6 +11,17 @@
 | `wt preview --path <p>` | Preview worktree | `--json` |
 | `wt agent context` | Full worktree context | `--json` |
 | `wt agent status` | Minimal status | `--json` |
+| `wt config show` | Show configuration | `--json` |
+| `wt config set-editor <editor>` | Set default editor | - |
+| `wt config set-discovery-paths <paths>` | Set auto-discovery paths | - |
+
+## Interactive Mode (Human Users)
+
+When shell integration is installed (`wt init`), run `wt` without arguments for an interactive picker:
+- **Enter**: Switch to selected worktree (`cd` action)
+- **Ctrl-E**: Open selected worktree in `$EDITOR` (edit action)
+
+Agents typically use non-interactive commands with `--json` and `--quiet` flags instead.
 
 ## JSON Output Examples
 
@@ -33,6 +44,29 @@
 ```json
 {"current": {"path": "/path/to/wt", "branch": "main", "dirty": true}, "count": 3}
 ```
+
+## Configuration
+
+Configuration file: `~/.config/worktree-manager/config.yaml`
+
+```bash
+# Show current configuration (YAML)
+wt config show
+
+# Show as JSON
+wt config show --json
+
+# Set default editor for interactive mode
+wt config set-editor code
+
+# Configure auto-discovery paths for `wt list --all`
+wt config set-discovery-paths ~/projects ~/work
+```
+
+Config options:
+- `editor`: Default editor for Ctrl-E in interactive mode (default: `nvim`)
+- `fzf`: Customize fzf appearance (height, layout, preview window)
+- `auto_discovery`: Enable/disable and configure repo discovery paths
 
 ## Common Workflows
 
