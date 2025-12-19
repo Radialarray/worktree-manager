@@ -27,16 +27,32 @@ pub fn interactive_add(
     let repo_root = git::repo_root(None).context("failed to determine repository root")?;
 
     // Get available branches (local + remote, excluding ones that already have worktrees)
-    let branches = get_available_branches(&repo_root)?;
+    let mut branches = get_available_branches(&repo_root)?;
 
-    if branches.is_empty() {
-        bail!("no branches available for new worktrees");
-    }
+    // Add option to create a new branch at the top
+    let create_new_option = "[+] Create new branch...";
+    branches.insert(0, create_new_option.to_string());
 
     // Run fzf to select a branch
     let selected = run_fzf_branch_picker(&branches)?;
 
     match selected {
+        Some(branch) if branch == create_new_option => {
+            // Prompt for new branch name
+            eprint!("Enter new branch name: ");
+            std::io::stderr().flush()?;
+
+            let mut new_branch = String::new();
+            std::io::stdin().read_line(&mut new_branch)?;
+            let new_branch = new_branch.trim();
+
+            if new_branch.is_empty() {
+                eprintln!("Cancelled.");
+                return Ok(());
+            }
+
+            add_worktree(new_branch, path, track, json, quiet)
+        }
         Some(branch) => {
             // Strip remote prefix if present (e.g., "origin/feature" -> "feature")
             let branch_name = if let Some(stripped) = branch.strip_prefix("origin/") {
