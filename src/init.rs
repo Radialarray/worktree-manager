@@ -244,7 +244,7 @@ __wt_edit() {
     local dir="$1"
     if [[ -d "$dir" ]]; then
         builtin cd "$dir" || return 1
-        "${EDITOR:-vim}" .
+        "${EDITOR:-vim}"
     else
         echo "wt: directory not found: $dir" >&2
         return 1
@@ -364,7 +364,7 @@ __wt_edit() {
     local dir="$1"
     if [[ -d "$dir" ]]; then
         builtin cd "$dir" || return 1
-        "${EDITOR:-vim}" .
+        "${EDITOR:-vim}"
     else
         echo "wt: directory not found: $dir" >&2
         return 1
@@ -463,9 +463,9 @@ function __wt_edit
     if test -d "$dir"
         builtin cd "$dir"
         if set -q EDITOR
-            $EDITOR .
+            $EDITOR
         else
-            vim .
+            vim
         end
     else
         echo "wt: directory not found: $dir" >&2
