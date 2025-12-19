@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser, Debug)]
 #[command(name = "wt", about = "Git worktree manager", version)]
@@ -7,8 +7,27 @@ pub struct Cli {
     pub command: Option<Command>,
 }
 
+/// Supported shells for shell integration
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum Shell {
+    Bash,
+    Zsh,
+    Fish,
+}
+
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    /// Print shell integration code for the given shell
+    ///
+    /// Add this to your shell configuration:
+    ///   Zsh:  eval "$(wt init zsh)"   # in ~/.zshrc
+    ///   Bash: eval "$(wt init bash)"  # in ~/.bashrc
+    ///   Fish: wt init fish | source   # in ~/.config/fish/config.fish
+    Init {
+        /// Shell to generate integration for
+        shell: Shell,
+    },
+
     /// Interactive picker (fzf)
     Interactive {
         /// Pick from all discovered repositories

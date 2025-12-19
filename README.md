@@ -35,45 +35,41 @@ The binary will be installed as `wt` in your Cargo bin directory (usually `~/.ca
 
 ## Shell Integration
 
-For full functionality, especially to use the `cd` action in interactive mode, you need to add a shell wrapper function to your shell configuration.
+For full functionality (especially the `cd` action in interactive mode), add the shell integration to your shell configuration.
 
-### For Zsh/Bash
+### Zsh
 
-Add this to your `~/.zshrc` or `~/.bashrc`:
+Add this to your `~/.zshrc`:
 
 ```bash
-wt() {
-  if [[ $# -eq 0 ]] || [[ "$1" == "interactive" ]]; then
-    local result
-    result=$(command wt interactive "$@")
-    if [[ -n $result ]]; then
-      local action=$(echo "$result" | cut -d'|' -f1)
-      local path=$(echo "$result" | cut -d'|' -f2)
-      
-      case $action in
-        "cd")
-          cd "$path" || return
-          ;;
-        "edit")
-          ${EDITOR:-nvim} "$path"
-          ;;
-      esac
-    fi
-  else
-    command wt "$@"
-  fi
-}
+eval "$(wt init zsh)"
+```
+
+### Bash
+
+Add this to your `~/.bashrc`:
+
+```bash
+eval "$(wt init bash)"
+```
+
+### Fish
+
+Add this to your `~/.config/fish/config.fish`:
+
+```fish
+wt init fish | source
 ```
 
 Then reload your shell:
 
 ```bash
 source ~/.zshrc   # for zsh
-# or
 source ~/.bashrc  # for bash
+# fish will reload automatically
 ```
 
-This wrapper enables:
+This shell integration enables:
 - **Enter**: Change directory to the selected worktree
 - **Ctrl-E**: Open the worktree in your configured editor
 
@@ -374,6 +370,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 The tool is organized into modular components:
 
 - **cli.rs**: Command-line interface definition
+- **init.rs**: Shell integration code generation (`wt init <shell>`)
 - **interactive.rs**: Interactive fzf-based picker
 - **git.rs**: Git operations and worktree listing
 - **config.rs**: Configuration file management

@@ -4,6 +4,7 @@ mod config;
 mod discovery;
 mod fzf;
 mod git;
+mod init;
 mod interactive;
 mod list;
 mod preview;
@@ -28,6 +29,10 @@ fn run() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command.unwrap_or(Command::Interactive { all: false }) {
+        Command::Init { shell } => {
+            print!("{}", crate::init::shell_init(shell));
+            Ok(())
+        }
         Command::Interactive { all } => crate::interactive::run_interactive(all),
         Command::List { json, all } => crate::list::list_worktrees(json, all),
         Command::Add {
