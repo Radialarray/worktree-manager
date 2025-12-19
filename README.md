@@ -23,53 +23,29 @@ A fast, intuitive CLI tool for managing Git worktrees with fzf-powered interacti
 ### Build from Source
 
 ```bash
-# Clone the repository
 git clone https://github.com/yourusername/worktree-manager.git
 cd worktree-manager
-
-# Install the binary
 cargo install --path .
+wt init
 ```
 
-The binary will be installed as `wt` in your Cargo bin directory (usually `~/.cargo/bin`).
+The `wt init` command auto-detects your shell and offers to add the integration to your config file.
 
-## Shell Integration
+### Shell Integration
 
-For full functionality (especially the `cd` action in interactive mode), add the shell integration to your shell configuration.
-
-### Zsh
-
-Add this to your `~/.zshrc`:
+Shell integration is required for the `cd` and `edit` actions in interactive mode. If you skipped `wt init` during installation or prefer manual setup:
 
 ```bash
-eval "$(wt init zsh)"
+# Auto-setup (recommended)
+wt init
+
+# Or manual setup:
+eval "$(wt init zsh)"   # add to ~/.zshrc
+eval "$(wt init bash)"  # add to ~/.bashrc
+wt init fish | source   # add to ~/.config/fish/config.fish
 ```
 
-### Bash
-
-Add this to your `~/.bashrc`:
-
-```bash
-eval "$(wt init bash)"
-```
-
-### Fish
-
-Add this to your `~/.config/fish/config.fish`:
-
-```fish
-wt init fish | source
-```
-
-Then reload your shell:
-
-```bash
-source ~/.zshrc   # for zsh
-source ~/.bashrc  # for bash
-# fish will reload automatically
-```
-
-This shell integration enables:
+Shell integration enables:
 - **Enter**: Change directory to the selected worktree
 - **Ctrl-E**: Open the worktree in your configured editor
 
