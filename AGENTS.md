@@ -1,5 +1,22 @@
 # Agent Guidelines for worktree-manager
 
+> **⚠️ IMPORTANT: Documentation Files**
+> 
+> This project has TWO separate documentation files for agents:
+> 
+> 1. **`AGENTS.md` (this file)** - Guidelines for agents working on THIS project (worktree-manager development)
+>    - Contains build/test commands, coding standards, project workflows
+>    - For agents helping develop/maintain worktree-manager itself
+>    - **DO NOT modify this file when adding user-facing documentation**
+> 
+> 2. **`src/agent_onboard.md`** - Documentation for agents USING the `wt` tool
+>    - Embedded in the binary, output via `wt agent onboard`
+>    - Contains `wt` command reference, JSON schemas, usage workflows
+>    - For agents using `wt` in their own projects
+>    - **MODIFY THIS FILE when adding user-facing `wt` documentation**
+> 
+> If you're documenting how to USE `wt`, edit `src/agent_onboard.md`, not this file!
+
 ## Build / Lint / Test
 - `cargo build` / `cargo build --release`
 - `cargo test` - run all tests
