@@ -1,33 +1,39 @@
 # Agent Guidelines for worktree-manager
 
-## Build & Test Commands
-- `npm run build` - Compile TypeScript to dist/
-- `npm test` - Run all tests
-- `npm test -- <test-file>` - Run single test file
-- `npm run lint` - Run ESLint
-- `npm run format` - Format code with Prettier
+## Build / Lint / Test
+- `cargo build` / `cargo build --release`
+- `cargo test` - run all tests
+- `cargo test <test_name>` - run a single test (substring match)
+- `cargo fmt` - format (rustfmt)
+- `cargo clippy --all-targets --all-features -- -D warnings` - lint
 
 ## Code Style
-- **Language**: TypeScript with strict mode enabled
-- **Imports**: Use ES6 imports, group by external → internal → relative
-- **Formatting**: 2-space indent, single quotes, semicolons, trailing commas
-- **Types**: Explicit return types on functions, avoid `any`, prefer interfaces over types
-- **Naming**: camelCase (variables/functions), PascalCase (classes/types), UPPER_SNAKE_CASE (constants)
-- **Error Handling**: Use custom error classes, throw descriptive errors, avoid silent failures
-- **Comments**: JSDoc for public APIs, inline comments for complex logic only
-- **Testing**: Colocate tests with source files (*.test.ts), use describe/it blocks, mock external dependencies
+- Run `cargo fmt` before committing; keep code clippy-clean.
+- Imports: use rustfmt ordering; avoid unused imports.
+- Naming: snake_case (fns/vars/modules), CamelCase (types/traits), SCREAMING_SNAKE_CASE (consts).
+- Types: prefer explicit structs/enums; avoid overly generic lifetimes; no `unsafe` unless justified.
+- Errors: return `Result<T>`; use `anyhow` at boundaries, `thiserror` for domain errors.
+- CLI UX: clear stderr errors, helpful exit codes, `--json` for machine output.
 
-## Project-Specific Rules
-- This is a Git worktree management tool - prioritize CLI UX and Git integration
-- Follow conventional commits: feat/fix/docs/refactor/test/chore
-- Update README.md when adding new commands or features
+## Issue Tracking
+
+This project uses **bd (beads)** for issue tracking.
+Run `bd prime` for workflow context, or install hooks (`bd hooks install`) for auto-injection.
+
+**Quick reference:**
+- `bd ready` - Find unblocked work
+- `bd create "Title" --type task --priority 2` - Create issue
+- `bd close <id>` - Complete work
+- `bd sync` - Sync with git (run at session end)
+
+For full workflow details: `bd prime`
 
 ## Landing the Plane (Session Completion)
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
 
 **MANDATORY WORKFLOW:**
-
+- If code changed: run `cargo test` + `cargo fmt` + `cargo clippy`.
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
