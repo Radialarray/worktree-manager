@@ -85,7 +85,7 @@ wt agent status --json
 | `wt remove <target>` | Remove worktree | `--json`, `--quiet`, `--force` |
 | `wt prune` | Clean stale worktrees | `--json`, `--quiet` |
 | `wt preview --path <path>` | Preview worktree details | `--json` |
-| `wt config show` | Show configuration | `--json` |
+| `wt config [paths...]` | Configure auto-discovery paths | N/A |
 
 ### Agent-Specific Commands
 
