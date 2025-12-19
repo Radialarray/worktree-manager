@@ -61,6 +61,14 @@ pub enum Command {
         /// Remote to track (e.g. origin)
         #[arg(long)]
         track: Option<String>,
+
+        /// Output result as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Suppress non-essential output
+        #[arg(short, long)]
+        quiet: bool,
     },
 
     /// Remove a worktree (by branch name or path)
@@ -70,10 +78,26 @@ pub enum Command {
         /// Skip confirmation
         #[arg(long)]
         force: bool,
+
+        /// Output result as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Suppress interactive prompts (without --force, will not remove)
+        #[arg(short, long)]
+        quiet: bool,
     },
 
     /// Prune stale worktrees
-    Prune,
+    Prune {
+        /// Output result as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Suppress non-essential output
+        #[arg(short, long)]
+        quiet: bool,
+    },
 
     /// Print preview information for a worktree (used by fzf)
     Preview {
@@ -94,7 +118,11 @@ pub enum ConfigCommand {
     Init,
 
     /// Show effective config
-    Show,
+    Show {
+        /// Output as JSON instead of YAML
+        #[arg(long)]
+        json: bool,
+    },
 
     /// Set default editor (e.g. nvim, code)
     SetEditor { editor: String },

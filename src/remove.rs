@@ -2,15 +2,31 @@ use std::io::{self, Write};
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
+use serde::Serialize;
 
 use crate::git;
 use crate::process;
 use crate::worktree::Worktree;
 
+/// Result of removing a worktree (for JSON output)
+#[derive(Serialize)]
+struct RemoveResult {
+    success: bool,
+    removed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    branch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reason: Option<String>,
+}
+
 /// Remove a worktree identified by branch name or path.
 /// - target: branch name or path to the worktree
 /// - force: if true, skip confirmation and force remove
-pub fn remove_worktree(target: &str, force: bool) -> Result<()> {
+/// - json: output result as JSON
+/// - quiet: suppress interactive prompts (without force, will not remove)
+pub fn remove_worktree(target: &str, force: bool, json: bool, quiet: bool) -> Result<()> {
     // Get repo root and list worktrees
     let repo_root = git::repo_root(None).context("not in a git repository")?;
     let worktrees = git::worktrees_porcelain(&repo_root)?;
@@ -18,31 +34,69 @@ pub fn remove_worktree(target: &str, force: bool) -> Result<()> {
     // Find matching worktree
     let matching_worktree = find_worktree(&worktrees, target)?;
 
+    let branch_display = matching_worktree
+        .branch
+        .as_ref()
+        .and_then(|b| b.strip_prefix("refs/heads/"))
+        .unwrap_or("<detached>")
+        .to_string();
+    let path_display = matching_worktree.path.display().to_string();
+
     // Prevent removal of main/bare worktree
     if matching_worktree.bare {
+        if json {
+            let result = RemoveResult {
+                success: false,
+                removed: false,
+                branch: Some(branch_display),
+                path: Some(path_display),
+                reason: Some("cannot remove the main worktree (bare repository location)".into()),
+            };
+            println!("{}", serde_json::to_string(&result)?);
+            return Ok(());
+        }
         bail!("cannot remove the main worktree (bare repository location)");
     }
 
     // Check for locked worktrees
     if matching_worktree.locked {
+        if json {
+            let result = RemoveResult {
+                success: false,
+                removed: false,
+                branch: Some(branch_display),
+                path: Some(path_display),
+                reason: Some("worktree is locked".into()),
+            };
+            println!("{}", serde_json::to_string(&result)?);
+            return Ok(());
+        }
         bail!(
             "worktree '{}' is locked; use `git worktree unlock` first or `git worktree remove --force`",
             matching_worktree.path.display()
         );
     }
 
-    // Confirmation prompt (unless force)
+    // Confirmation prompt (unless force or quiet)
     if !force {
-        let branch_display = matching_worktree
-            .branch
-            .as_ref()
-            .and_then(|b| b.strip_prefix("refs/heads/"))
-            .unwrap_or("<detached>");
+        if quiet {
+            // In quiet mode without force, don't remove (non-interactive)
+            if json {
+                let result = RemoveResult {
+                    success: true,
+                    removed: false,
+                    branch: Some(branch_display),
+                    path: Some(path_display),
+                    reason: Some("skipped: --quiet without --force".into()),
+                };
+                println!("{}", serde_json::to_string(&result)?);
+            }
+            return Ok(());
+        }
 
         eprint!(
             "Remove worktree '{}' at {}? (y/N): ",
-            branch_display,
-            matching_worktree.path.display()
+            branch_display, path_display
         );
         io::stderr().flush()?;
 
@@ -51,7 +105,18 @@ pub fn remove_worktree(target: &str, force: bool) -> Result<()> {
 
         let response = response.trim();
         if response != "y" && response != "Y" {
-            eprintln!("Cancelled.");
+            if json {
+                let result = RemoveResult {
+                    success: true,
+                    removed: false,
+                    branch: Some(branch_display),
+                    path: Some(path_display),
+                    reason: Some("cancelled by user".into()),
+                };
+                println!("{}", serde_json::to_string(&result)?);
+            } else {
+                eprintln!("Cancelled.");
+            }
             return Ok(());
         }
     }
@@ -66,7 +131,18 @@ pub fn remove_worktree(target: &str, force: bool) -> Result<()> {
 
     match result {
         Ok(_) => {
-            eprintln!("Worktree removed.");
+            if json {
+                let result = RemoveResult {
+                    success: true,
+                    removed: true,
+                    branch: Some(branch_display),
+                    path: Some(path_display),
+                    reason: None,
+                };
+                println!("{}", serde_json::to_string(&result)?);
+            } else if !quiet {
+                eprintln!("Worktree removed.");
+            }
             Ok(())
         }
         Err(e) => {
@@ -76,6 +152,17 @@ pub fn remove_worktree(target: &str, force: bool) -> Result<()> {
                 || error_msg.contains("modified files")
                 || error_msg.contains("changes would be lost")
             {
+                if json {
+                    let result = RemoveResult {
+                        success: false,
+                        removed: false,
+                        branch: Some(branch_display),
+                        path: Some(path_display),
+                        reason: Some("worktree has uncommitted changes".into()),
+                    };
+                    println!("{}", serde_json::to_string(&result)?);
+                    return Ok(());
+                }
                 bail!(
                     "worktree has uncommitted changes; use --force to remove anyway\nOriginal error: {}",
                     error_msg

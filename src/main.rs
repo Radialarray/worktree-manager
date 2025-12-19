@@ -39,15 +39,16 @@ fn run() -> Result<()> {
             branch,
             path,
             track,
-        } => {
-            crate::add::add_worktree(&branch, path.as_deref(), track.as_deref())?;
-            Ok(())
-        }
-        Command::Remove { target, force } => {
-            crate::remove::remove_worktree(&target, force)?;
-            Ok(())
-        }
-        Command::Prune => crate::prune::prune_worktrees(),
+            json,
+            quiet,
+        } => crate::add::add_worktree(&branch, path.as_deref(), track.as_deref(), json, quiet),
+        Command::Remove {
+            target,
+            force,
+            json,
+            quiet,
+        } => crate::remove::remove_worktree(&target, force, json, quiet),
+        Command::Prune { json, quiet } => crate::prune::prune_worktrees(json, quiet),
         Command::Preview { path } => crate::preview::print_preview(std::path::Path::new(&path)),
         Command::Config { command } => {
             use crate::cli::ConfigCommand;
@@ -63,12 +64,16 @@ fn run() -> Result<()> {
                     }
                     Ok(())
                 }
-                ConfigCommand::Show => {
+                ConfigCommand::Show { json } => {
                     let config = crate::config::load()?;
-                    let path = crate::config::config_path();
-                    println!("# Config file: {}", path.display());
-                    let yaml = serde_yaml::to_string(&config)?;
-                    println!("{}", yaml);
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&config)?);
+                    } else {
+                        let path = crate::config::config_path();
+                        println!("# Config file: {}", path.display());
+                        let yaml = serde_yaml::to_string(&config)?;
+                        println!("{}", yaml);
+                    }
                     Ok(())
                 }
                 ConfigCommand::SetEditor { editor } => {

@@ -1,14 +1,33 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
+use serde::Serialize;
 
 use crate::{git, process};
+
+/// Result of adding a worktree (for JSON output)
+#[derive(Serialize)]
+struct AddResult {
+    success: bool,
+    branch: String,
+    path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tracking: Option<String>,
+}
 
 /// Add a new worktree for the given branch.
 /// - branch: the branch name to create a worktree for
 /// - path: optional custom path (defaults to sibling directory named after branch)
 /// - track: optional remote to track (e.g., "origin")
-pub fn add_worktree(branch: &str, path: Option<&str>, track: Option<&str>) -> Result<()> {
+/// - json: output result as JSON
+/// - quiet: suppress non-essential output
+pub fn add_worktree(
+    branch: &str,
+    path: Option<&str>,
+    track: Option<&str>,
+    json: bool,
+    quiet: bool,
+) -> Result<()> {
     // Get the current repository root
     let repo_root = git::repo_root(None).context("failed to determine repository root")?;
 
@@ -30,8 +49,10 @@ pub fn add_worktree(branch: &str, path: Option<&str>, track: Option<&str>) -> Re
     // Check if a worktree for this branch already exists
     check_existing_worktree(&repo_root, branch)?;
 
-    // Display what we're doing
-    eprintln!("Creating worktree at: {}", target_path.display());
+    // Display what we're doing (unless quiet or json)
+    if !quiet && !json {
+        eprintln!("Creating worktree at: {}", target_path.display());
+    }
 
     // Execute the git worktree add command
     if let Some(remote) = track {
@@ -66,7 +87,17 @@ pub fn add_worktree(branch: &str, path: Option<&str>, track: Option<&str>) -> Re
         .context("failed to add worktree")?;
     }
 
-    eprintln!("Worktree created successfully");
+    if json {
+        let result = AddResult {
+            success: true,
+            branch: branch.to_string(),
+            path: target_path.to_string_lossy().to_string(),
+            tracking: track.map(|r| format!("{}/{}", r, branch)),
+        };
+        println!("{}", serde_json::to_string(&result)?);
+    } else if !quiet {
+        eprintln!("Worktree created successfully");
+    }
 
     Ok(())
 }
