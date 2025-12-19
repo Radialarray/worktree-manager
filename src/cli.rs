@@ -10,7 +10,11 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Command {
     /// Interactive picker (fzf)
-    Interactive,
+    Interactive {
+        /// Pick from all discovered repositories
+        #[arg(long)]
+        all: bool,
+    },
 
     /// List worktrees
     List {

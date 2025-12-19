@@ -1,6 +1,7 @@
 mod add;
 mod cli;
 mod config;
+mod discovery;
 mod fzf;
 mod git;
 mod interactive;
@@ -26,15 +27,9 @@ fn main() {
 fn run() -> Result<()> {
     let cli = Cli::parse();
 
-    match cli.command.unwrap_or(Command::Interactive) {
-        Command::Interactive => crate::interactive::run_interactive(),
-        Command::List { json, all } => {
-            if all {
-                anyhow::bail!("--all list not implemented yet")
-            }
-            crate::list::list_worktrees(json)?;
-            Ok(())
-        }
+    match cli.command.unwrap_or(Command::Interactive { all: false }) {
+        Command::Interactive { all } => crate::interactive::run_interactive(all),
+        Command::List { json, all } => crate::list::list_worktrees(json, all),
         Command::Add {
             branch,
             path,

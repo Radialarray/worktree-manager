@@ -7,10 +7,23 @@ use crate::{config, git};
 
 /// Run the interactive worktree picker.
 /// Outputs action in format "cd|PATH" or "edit|PATH" for shell wrapper to parse.
-pub fn run_interactive() -> Result<()> {
+///
+/// # Arguments
+///
+/// * `all` - If true, show worktrees from all discovered repositories
+pub fn run_interactive(all: bool) -> Result<()> {
     // Load config for fzf settings
     let config = config::load()?;
 
+    if all {
+        run_interactive_all(&config)
+    } else {
+        run_interactive_single(&config)
+    }
+}
+
+/// Run interactive picker for a single repository (current directory).
+fn run_interactive_single(config: &crate::config::Config) -> Result<()> {
     // Get repository root and worktrees
     let repo_root = git::repo_root(None)?;
     let worktrees = git::worktrees_porcelain(&repo_root)?;
@@ -24,13 +37,60 @@ pub fn run_interactive() -> Result<()> {
     let candidates = prepare_candidates(&worktrees);
 
     // Run fzf with --expect to capture which key was pressed
-    let selection = run_fzf_with_expect(&candidates, &config.fzf)?;
+    let selection = run_fzf_with_expect(&candidates, &config.fzf, false)?;
 
     // Handle the selection
     match selection {
         Some((key, line)) => {
             // Extract path from the selected line (second column)
             let path = extract_path(&line)?;
+
+            // Output action based on which key was pressed
+            if key == "ctrl-e" {
+                println!("edit|{}", path);
+            } else {
+                // Enter key or empty means cd action
+                println!("cd|{}", path);
+            }
+            Ok(())
+        }
+        None => {
+            // User cancelled - exit cleanly without output
+            Ok(())
+        }
+    }
+}
+
+/// Run interactive picker across all discovered repositories.
+fn run_interactive_all(config: &crate::config::Config) -> Result<()> {
+    // Check that discovery paths are configured
+    if config.auto_discovery.paths.is_empty() {
+        anyhow::bail!(
+            "No auto-discovery paths configured. Run: wt config set-discovery-paths <paths...>"
+        );
+    }
+
+    // Discover all repos
+    let repos = crate::discovery::discover_repos(&config.auto_discovery.paths)?;
+    if repos.is_empty() {
+        anyhow::bail!("No git repositories found in configured discovery paths.");
+    }
+
+    // Collect worktrees from all repos
+    let candidates = prepare_all_candidates(&repos)?;
+
+    if candidates.is_empty() {
+        anyhow::bail!("No worktrees found in any discovered repository");
+    }
+
+    // Run fzf with --expect to capture which key was pressed
+    let selection = run_fzf_with_expect(&candidates, &config.fzf, true)?;
+
+    // Handle the selection
+    match selection {
+        Some((key, line)) => {
+            // Extract path from the selected line (third column for --all mode)
+            let path = extract_path_from_all(&line)?;
 
             // Output action based on which key was pressed
             if key == "ctrl-e" {
@@ -99,12 +159,97 @@ fn extract_path(line: &str) -> Result<String> {
     }
 }
 
+/// Prepare candidates for cross-repo display (3 columns: repo, branch, path).
+fn prepare_all_candidates(repos: &[std::path::PathBuf]) -> Result<Vec<String>> {
+    let mut all_worktrees: Vec<(String, crate::worktree::Worktree)> = Vec::new();
+
+    // Collect all worktrees from all repos
+    for repo_root in repos {
+        let repo_name = repo_root
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("(unknown)")
+            .to_string();
+
+        match git::worktrees_porcelain(repo_root) {
+            Ok(worktrees) => {
+                for wt in worktrees {
+                    all_worktrees.push((repo_name.clone(), wt));
+                }
+            }
+            Err(e) => {
+                eprintln!("Warning: failed to list worktrees for {}: {}", repo_name, e);
+            }
+        }
+    }
+
+    // Find max widths for alignment
+    let max_repo_len = all_worktrees
+        .iter()
+        .map(|(repo, _)| repo.len())
+        .max()
+        .unwrap_or(0);
+
+    let max_branch_len = all_worktrees
+        .iter()
+        .map(|(_, wt)| format_branch_name(wt).len())
+        .max()
+        .unwrap_or(0);
+
+    // Format each worktree with aligned columns: <repo>  <branch>  <path>
+    let candidates: Vec<String> = all_worktrees
+        .iter()
+        .map(|(repo, wt)| {
+            let branch = format_branch_name(wt);
+            let path = wt.path.display();
+            format!(
+                "{:repo_width$}  {:branch_width$}  {}",
+                repo,
+                branch,
+                path,
+                repo_width = max_repo_len,
+                branch_width = max_branch_len
+            )
+        })
+        .collect();
+
+    Ok(candidates)
+}
+
+/// Extract path from 3-column format (repo, branch, path).
+fn extract_path_from_all(line: &str) -> Result<String> {
+    // Split on two spaces and filter out empty parts, then trim each part
+    // (padding creates multiple spaces, so split on "  " can create empty strings and parts with spaces)
+    let parts: Vec<&str> = line
+        .split("  ")
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if parts.len() >= 3 {
+        Ok(parts[2].to_string())
+    } else {
+        Err(anyhow!("failed to extract path from fzf output: {}", line))
+    }
+}
+
 /// Run fzf with --expect flag to capture which key was pressed.
 /// Returns (key, selected_line) tuple, where key is empty string for Enter.
+///
+/// # Arguments
+///
+/// * `candidates` - List of formatted candidate strings
+/// * `fzf_config` - Fzf configuration
+/// * `all_mode` - If true, use 3-column format (repo, branch, path); otherwise 2-column (branch, path)
 fn run_fzf_with_expect(
     candidates: &[String],
     fzf_config: &config::FzfConfig,
+    all_mode: bool,
 ) -> Result<Option<(String, String)>> {
+    // Preview column depends on mode: {2} for single repo, {3} for all repos
+    let preview_column = if all_mode { "{3}" } else { "{2}" };
+    let preview_cmd = format!("wt preview --path {}", preview_column);
+
     // Build fzf command arguments
     let args = vec![
         "--height".to_string(),
@@ -114,7 +259,7 @@ fn run_fzf_with_expect(
         "--preview-window".to_string(),
         fzf_config.preview_window.clone(),
         "--preview".to_string(),
-        "wt preview --path {2}".to_string(), // {2} refers to second column (path)
+        preview_cmd,
         "--prompt".to_string(),
         "Worktree> ".to_string(),
         "--header".to_string(),
@@ -285,5 +430,25 @@ mod tests {
     fn test_extract_path_failure() {
         let line = "invalid-line-format";
         assert!(extract_path(line).is_err());
+    }
+
+    #[test]
+    fn test_extract_path_from_all_success() {
+        let line = "worktree-manager  main       /Users/user/dev/worktree-manager";
+        let path = extract_path_from_all(line).unwrap();
+        assert_eq!(path, "/Users/user/dev/worktree-manager");
+    }
+
+    #[test]
+    fn test_extract_path_from_all_with_spaces() {
+        let line = "my-repo  feature-x  /Users/user/my projects/my-repo";
+        let path = extract_path_from_all(line).unwrap();
+        assert_eq!(path, "/Users/user/my projects/my-repo");
+    }
+
+    #[test]
+    fn test_extract_path_from_all_failure() {
+        let line = "only-two  columns";
+        assert!(extract_path_from_all(line).is_err());
     }
 }
