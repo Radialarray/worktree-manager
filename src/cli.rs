@@ -42,8 +42,9 @@ pub enum Command {
     },
 
     /// List worktrees
+    #[command(long_about = include_str!("help/list.md"))]
     List {
-        /// JSON output
+        /// Output as JSON
         #[arg(long)]
         json: bool,
 
@@ -53,9 +54,7 @@ pub enum Command {
     },
 
     /// Add a new worktree
-    ///
-    /// Without arguments: interactive branch picker to select which branch to create worktree for.
-    /// With branch argument: creates worktree for the specified branch.
+    #[command(long_about = include_str!("help/add.md"))]
     Add {
         /// Branch to create worktree for (optional - interactive picker if not provided)
         branch: Option<String>,
@@ -68,39 +67,38 @@ pub enum Command {
         #[arg(long)]
         track: Option<String>,
 
-        /// Output result as JSON
+        /// Output as JSON
         #[arg(long)]
         json: bool,
 
-        /// Suppress non-essential output
+        /// Suppress non-essential output and skip prompts
         #[arg(short, long)]
         quiet: bool,
     },
 
     /// Remove a worktree (by branch name or path)
-    ///
-    /// Without arguments: interactive picker to select which worktree to remove.
-    /// With target argument: removes the specified worktree.
+    #[command(long_about = include_str!("help/remove.md"))]
     Remove {
         /// Worktree to remove (branch name or path) - optional, interactive picker if not provided
         target: Option<String>,
 
-        /// Skip confirmation
+        /// Skip confirmation prompt
         #[arg(long)]
         force: bool,
 
-        /// Output result as JSON
+        /// Output as JSON
         #[arg(long)]
         json: bool,
 
-        /// Suppress interactive prompts (without --force, will not remove)
+        /// Suppress interactive prompts and non-essential output
         #[arg(short, long)]
         quiet: bool,
     },
 
     /// Prune stale worktrees
+    #[command(long_about = include_str!("help/prune.md"))]
     Prune {
-        /// Output result as JSON
+        /// Output as JSON
         #[arg(long)]
         json: bool,
 
@@ -126,6 +124,7 @@ pub enum Command {
     },
 
     /// Agent-friendly context and status commands
+    #[command(long_about = include_str!("help/agent.md"))]
     Agent {
         #[command(subcommand)]
         command: AgentCommand,
