@@ -104,50 +104,19 @@ fn run() -> Result<()> {
         Command::Preview { path, json } => {
             crate::preview::print_preview(std::path::Path::new(&path), json)
         }
-        Command::Config { command } => {
-            use crate::cli::ConfigCommand;
-            match command {
-                ConfigCommand::Init => {
-                    let path = crate::config::config_path();
-                    if path.exists() {
-                        println!("Config file already exists at {}", path.display());
-                    } else {
-                        let config = crate::config::Config::default();
-                        crate::config::save(&config)?;
-                        eprintln!("Created config file at {}", path.display());
-                    }
-                    Ok(())
-                }
-                ConfigCommand::Show { json } => {
-                    let config = crate::config::load()?;
-                    if json {
-                        println!("{}", serde_json::to_string_pretty(&config)?);
-                    } else {
-                        let path = crate::config::config_path();
-                        println!("# Config file: {}", path.display());
-                        let yaml = serde_yaml::to_string(&config)?;
-                        println!("{}", yaml);
-                    }
-                    Ok(())
-                }
-                ConfigCommand::SetEditor { editor } => {
-                    let mut config = crate::config::load()?;
-                    config.editor = editor.clone();
-                    crate::config::save(&config)?;
-                    eprintln!("Editor set to: {}", editor);
-                    Ok(())
-                }
-                ConfigCommand::SetDiscoveryPaths { paths } => {
-                    let mut config = crate::config::load()?;
-                    config.auto_discovery.paths = paths.clone();
-                    crate::config::save(&config)?;
-                    eprintln!("Auto-discovery paths set to:");
-                    for path in &paths {
-                        eprintln!("  {}", path);
-                    }
-                    Ok(())
-                }
+
+        Command::Config { paths } => {
+            let mut config = crate::config::load()?;
+            config.auto_discovery.paths = paths.clone();
+            crate::config::save(&config)?;
+            eprintln!("Auto-discovery paths configured:");
+            for path in &paths {
+                eprintln!("  {}", path);
             }
+            eprintln!("\nYou can now use:");
+            eprintln!("  wt list --all         # List worktrees across all repos");
+            eprintln!("  wt interactive --all  # Interactive picker across all repos");
+            Ok(())
         }
         Command::Agent { command } => {
             use crate::cli::AgentCommand;

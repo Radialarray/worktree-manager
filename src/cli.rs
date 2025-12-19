@@ -18,9 +18,7 @@ impl Cli {
             Some(Command::Remove { json, .. }) => *json,
             Some(Command::Prune { json, .. }) => *json,
             Some(Command::Preview { json, .. }) => *json,
-            Some(Command::Config {
-                command: ConfigCommand::Show { json },
-            }) => *json,
+
             Some(Command::Agent {
                 command: AgentCommand::Context { json } | AgentCommand::Status { json },
             }) => *json,
@@ -137,17 +135,27 @@ pub enum Command {
         json: bool,
     },
 
-    /// Configuration management
-    Config {
-        #[command(subcommand)]
-        command: ConfigCommand,
-    },
+
 
     /// Agent-friendly context and status commands
     #[command(long_about = include_str!("help/agent.md"))]
     Agent {
         #[command(subcommand)]
         command: AgentCommand,
+    },
+
+    /// Configure auto-discovery paths for --all flag
+    ///
+    /// Set search paths for discovering git repositories when using --all.
+    /// The --all flag allows listing/browsing worktrees across multiple repos.
+    ///
+    /// Examples:
+    ///   wt config ~/projects ~/work
+    ///   wt list --all               # List worktrees across all discovered repos
+    ///   wt interactive --all        # Interactive picker across all repos
+    Config { 
+        /// Paths to search for git repositories
+        paths: Vec<String> 
     },
 }
 
@@ -174,31 +182,4 @@ pub enum AgentCommand {
     Onboard,
 }
 
-#[derive(Subcommand, Debug)]
-pub enum ConfigCommand {
-    /// Create an initial config file (no-op if exists)
-    Init,
 
-    /// Show effective config
-    Show {
-        /// Output as JSON instead of YAML
-        #[arg(long)]
-        json: bool,
-    },
-
-    /// Set default editor for Ctrl-E in interactive mode
-    ///
-    /// Supported editors:
-    ///   Terminal: nvim, vim, vi, nano, micro, emacs, helix, kakoune
-    ///   GUI: code (VS Code), cursor, zed, zed-preview
-    ///
-    /// Examples:
-    ///   wt config set-editor nvim
-    ///   wt config set-editor code
-    ///   wt config set-editor zed
-    #[command(verbatim_doc_comment)]
-    SetEditor { editor: String },
-
-    /// Set auto-discovery search roots (repeatable)
-    SetDiscoveryPaths { paths: Vec<String> },
-}

@@ -11,9 +11,7 @@
 | `wt preview --path <p>` | Preview worktree | `--json` |
 | `wt agent context` | Full worktree context | `--json` |
 | `wt agent status` | Minimal status | `--json` |
-| `wt config show` | Show configuration | `--json` |
-| `wt config set-editor <editor>` | Set default editor | - |
-| `wt config set-discovery-paths <paths>` | Set auto-discovery paths | - |
+| `wt config <paths...>` | Set auto-discovery paths for --all | - |
 
 ## Interactive Mode (Human Users)
 
@@ -47,26 +45,18 @@ Agents typically use non-interactive commands with `--json` and `--quiet` flags 
 
 ## Configuration
 
-Configuration file: `~/.config/worktree-manager/config.yaml`
+For `wt list --all` and `wt interactive --all`, configure auto-discovery paths:
 
 ```bash
-# Show current configuration (YAML)
-wt config show
+# Set paths to search for git repositories
+wt config ~/projects ~/work
 
-# Show as JSON
-wt config show --json
-
-# Set default editor for interactive mode
-wt config set-editor code
-
-# Configure auto-discovery paths for `wt list --all`
-wt config set-discovery-paths ~/projects ~/work
+# Now you can list/browse across all repos
+wt list --all
+wt interactive --all
 ```
 
-Config options:
-- `editor`: Default editor for Ctrl-E in interactive mode (default: `nvim`)
-- `fzf`: Customize fzf appearance (height, layout, preview window)
-- `auto_discovery`: Enable/disable and configure repo discovery paths
+Advanced: Edit `~/.config/worktree-manager/config.yaml` to customize FZF appearance
 
 ## Common Workflows
 

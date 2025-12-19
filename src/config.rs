@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Config {
     pub version: String,
-    pub editor: String,
     pub fzf: FzfConfig,
     pub auto_discovery: AutoDiscoveryConfig,
 }
@@ -29,7 +28,6 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             version: "1.0.0".to_string(),
-            editor: "nvim".to_string(),
             fzf: FzfConfig::default(),
             auto_discovery: AutoDiscoveryConfig::default(),
         }
@@ -113,7 +111,6 @@ mod tests {
     fn default_config_has_expected_values() {
         let config = Config::default();
         assert_eq!(config.version, "1.0.0");
-        assert_eq!(config.editor, "nvim");
         assert_eq!(config.fzf.height, "40%");
         assert_eq!(config.fzf.layout, "reverse");
         assert_eq!(config.fzf.preview_window, "right:60%");
@@ -126,7 +123,6 @@ mod tests {
         let config = Config::default();
         let yaml = serde_yaml::to_string(&config).unwrap();
         assert!(yaml.contains("version:"));
-        assert!(yaml.contains("editor:"));
         assert!(yaml.contains("fzf:"));
         assert!(yaml.contains("auto_discovery:"));
     }
@@ -135,7 +131,6 @@ mod tests {
     fn config_deserializes_from_yaml() {
         let yaml = r#"
 version: "1.0.0"
-editor: code
 fzf:
   height: "50%"
   layout: reverse
@@ -148,7 +143,6 @@ auto_discovery:
 "#;
         let config: Config = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(config.version, "1.0.0");
-        assert_eq!(config.editor, "code");
         assert_eq!(config.fzf.height, "50%");
         assert_eq!(config.fzf.preview_window, "right:70%");
         assert!(!config.auto_discovery.enabled);
@@ -169,9 +163,9 @@ auto_discovery:
 
     #[test]
     fn load_returns_default_when_file_missing() {
-        // This test assumes the config file doesn't exist at the standard location
-        // In a real scenario, you might want to use a temp directory
+        // Test that load() succeeds whether config exists or not
         let config = load().unwrap();
-        assert_eq!(config.editor, "nvim");
+        assert_eq!(config.version, "1.0.0");
+        // Don't assert on paths - user may have configured them
     }
 }
