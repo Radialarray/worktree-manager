@@ -259,6 +259,45 @@ Contributions welcome! Please:
 4. Follow conventional commit style
 5. Add tests for new features
 
+## Uninstall
+
+To completely remove `wt` from your Mac:
+
+```bash
+# Download and run the uninstall script
+curl -sSL https://raw.githubusercontent.com/yourusername/worktree-manager/main/uninstall.sh | bash
+
+# Or if you have the repository cloned
+./uninstall.sh
+```
+
+The uninstall script will:
+- Remove the `wt` binary from your PATH
+- Remove Homebrew installation (if applicable)
+- Prompt before removing configuration directory (`~/.config/worktree-manager`)
+- Remove shell integration from config files (creates backups)
+- Clean up cargo installation artifacts
+
+**Manual uninstall:**
+
+```bash
+# Remove binary
+rm $(which wt)
+
+# Remove configuration
+rm -rf ~/.config/worktree-manager
+
+# Remove shell integration (edit these files manually)
+# - ~/.zshrc or ~/.bashrc: Remove lines containing "wt init"
+# - ~/.config/fish/config.fish: Remove lines containing "wt init"
+
+# If installed via Homebrew
+brew uninstall worktree-manager
+
+# If installed via cargo
+cargo uninstall worktree-manager
+```
+
 ## See Also
 
 - [Git Worktree Documentation](https://git-scm.com/docs/git-worktree)
