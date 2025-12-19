@@ -186,7 +186,17 @@ pub enum ConfigCommand {
         json: bool,
     },
 
-    /// Set default editor (e.g. nvim, code)
+    /// Set default editor for Ctrl-E in interactive mode
+    ///
+    /// Supported editors:
+    ///   Terminal: nvim, vim, vi, nano, micro, emacs, helix, kakoune
+    ///   GUI: code (VS Code), cursor, zed, zed-preview
+    ///
+    /// Examples:
+    ///   wt config set-editor nvim
+    ///   wt config set-editor code
+    ///   wt config set-editor zed
+    #[command(verbatim_doc_comment)]
     SetEditor { editor: String },
 
     /// Set auto-discovery search roots (repeatable)

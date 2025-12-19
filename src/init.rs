@@ -244,7 +244,27 @@ __wt_edit() {
     local dir="$1"
     if [[ -d "$dir" ]]; then
         builtin cd "$dir" || return 1
-        "${EDITOR:-vim}"
+        local editor="${EDITOR:-vim}"
+        
+        # Handle editors that need special handling
+        case "$editor" in
+            code|cursor)
+                # VS Code, Cursor - open directory
+                $editor "$dir"
+                ;;
+            zed|zed-preview)
+                # Zed - open directory
+                $editor "$dir"
+                ;;
+            nvim|vim|vi|nano|micro|emacs|hx|helix|kak|kakoune)
+                # Terminal editors - launch in directory without args
+                $editor
+                ;;
+            *)
+                # Unknown editor - try without arguments
+                $editor
+                ;;
+        esac
     else
         echo "wt: directory not found: $dir" >&2
         return 1
@@ -364,7 +384,27 @@ __wt_edit() {
     local dir="$1"
     if [[ -d "$dir" ]]; then
         builtin cd "$dir" || return 1
-        "${EDITOR:-vim}"
+        local editor="${EDITOR:-vim}"
+        
+        # Handle editors that need special handling
+        case "$editor" in
+            code|cursor)
+                # VS Code, Cursor - open directory
+                $editor "$dir"
+                ;;
+            zed|zed-preview)
+                # Zed - open directory
+                $editor "$dir"
+                ;;
+            nvim|vim|vi|nano|micro|emacs|hx|helix|kak|kakoune)
+                # Terminal editors - launch in directory without args
+                $editor
+                ;;
+            *)
+                # Unknown editor - try without arguments
+                $editor
+                ;;
+        esac
     else
         echo "wt: directory not found: $dir" >&2
         return 1
@@ -462,10 +502,22 @@ function __wt_edit
     set -l dir $argv[1]
     if test -d "$dir"
         builtin cd "$dir"
-        if set -q EDITOR
-            $EDITOR
-        else
-            vim
+        set -l editor (set -q EDITOR; and echo $EDITOR; or echo vim)
+        
+        # Handle editors that need special handling
+        switch "$editor"
+            case code cursor
+                # VS Code, Cursor - open directory
+                $editor "$dir"
+            case zed zed-preview
+                # Zed - open directory
+                $editor "$dir"
+            case nvim vim vi nano micro emacs hx helix kak kakoune
+                # Terminal editors - launch in directory without args
+                $editor
+            case '*'
+                # Unknown editor - try without arguments
+                $editor
         end
     else
         echo "wt: directory not found: $dir" >&2
