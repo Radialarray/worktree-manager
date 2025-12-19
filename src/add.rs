@@ -72,8 +72,8 @@ pub fn add_worktree(
             Some(&repo_root),
         )
         .with_context(|| format!("failed to add worktree tracking {}", remote_branch))?;
-    } else {
-        // Add worktree for existing branch or create new branch
+    } else if branch_exists(&repo_root, branch)? {
+        // Branch exists, just add worktree for it
         process::run(
             "git",
             &[
@@ -85,6 +85,20 @@ pub fn add_worktree(
             Some(&repo_root),
         )
         .context("failed to add worktree")?;
+    } else {
+        // Branch doesn't exist, create it with -b
+        process::run(
+            "git",
+            &[
+                "worktree",
+                "add",
+                "-b",
+                branch,
+                target_path.to_str().context("invalid path encoding")?,
+            ],
+            Some(&repo_root),
+        )
+        .with_context(|| format!("failed to create worktree with new branch '{}'", branch))?;
     }
 
     if json {
@@ -122,6 +136,31 @@ fn calculate_default_path(repo_root: &Path, branch: &str) -> Result<PathBuf> {
     // Construct the path: <parent>/<repo_name>-<branch_sanitized>
     let worktree_dir_name = format!("{}-{}", repo_name, sanitized_branch);
     Ok(repo_parent.join(worktree_dir_name))
+}
+
+/// Check if a branch exists (local or remote).
+fn branch_exists(repo_root: &Path, branch: &str) -> Result<bool> {
+    // Check local branches
+    let local_ref = format!("refs/heads/{}", branch);
+    let result = std::process::Command::new("git")
+        .args(["show-ref", "--verify", "--quiet", &local_ref])
+        .current_dir(repo_root)
+        .status()
+        .context("failed to run git show-ref")?;
+
+    if result.success() {
+        return Ok(true);
+    }
+
+    // Check remote branches (any remote)
+    let output = std::process::Command::new("git")
+        .args(["branch", "-r", "--list", &format!("*/{}", branch)])
+        .current_dir(repo_root)
+        .output()
+        .context("failed to run git branch -r")?;
+
+    let remote_branches = String::from_utf8_lossy(&output.stdout);
+    Ok(!remote_branches.trim().is_empty())
 }
 
 /// Check if a worktree for the given branch already exists.
