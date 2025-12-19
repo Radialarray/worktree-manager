@@ -2,6 +2,10 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser, Debug)]
 #[command(name = "wt", about = "Git worktree manager", version)]
+#[command(after_help = "SHELL INTEGRATION:
+  eval \"$(wt init zsh)\"    # add to ~/.zshrc
+  eval \"$(wt init bash)\"   # add to ~/.bashrc
+  wt init fish | source    # add to ~/.config/fish/config.fish")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Command>,
