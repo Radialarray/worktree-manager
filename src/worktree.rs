@@ -3,8 +3,9 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
+use serde::Serialize;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Worktree {
     pub path: PathBuf,
     pub head: Option<String>,

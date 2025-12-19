@@ -45,6 +45,237 @@ Run `bd prime` for workflow context, or install hooks (`bd hooks install`) for a
 
 For full workflow details: `bd prime`
 
+---
+
+## CLI Quick Reference for Agents
+
+### Getting Context (Start of Session)
+
+```bash
+# Get full worktree context - recommended at session start
+wt agent context
+
+# Get minimal status (JSON) - for frequent checks
+wt agent status --json
+```
+
+### Core Commands
+
+| Command | Description | Agent Flags |
+|---------|-------------|-------------|
+| `wt list` | List all worktrees | `--json`, `--all` |
+| `wt add <branch>` | Create worktree for branch | `--json`, `--quiet` |
+| `wt remove <target>` | Remove worktree | `--json`, `--quiet`, `--force` |
+| `wt prune` | Clean stale worktrees | `--json`, `--quiet` |
+| `wt preview --path <path>` | Preview worktree details | `--json` |
+| `wt config show` | Show configuration | `--json` |
+
+### Agent-Specific Commands
+
+```bash
+# Full context with worktree state and quick commands
+wt agent context [--json]
+
+# Minimal status for frequent polling
+wt agent status [--json]
+
+# Onboarding instructions for AI agents (similar to bd prime)
+wt agent onboard
+```
+
+The `wt agent onboard` command outputs a compact workflow reference (~1-2k tokens) that can be injected into agent context at session start.
+
+---
+
+## JSON Output Schemas
+
+All commands support `--json` for machine-parseable output.
+
+### wt list --json
+
+```json
+[
+  {
+    "path": "/path/to/worktree",
+    "head": "abc1234",
+    "branch": "refs/heads/main",
+    "is_main": true
+  }
+]
+```
+
+### wt add <branch> --json
+
+```json
+{
+  "success": true,
+  "worktree": {
+    "path": "/path/to/new-worktree",
+    "branch": "feature-x"
+  }
+}
+```
+
+### wt remove <target> --json
+
+```json
+{
+  "success": true,
+  "removed": {
+    "path": "/path/to/worktree",
+    "branch": "feature-x"
+  }
+}
+```
+
+### wt prune --json
+
+```json
+{
+  "pruned": ["path1", "path2"],
+  "count": 2
+}
+```
+
+### wt preview --path <path> --json
+
+```json
+{
+  "repo": "worktree-manager",
+  "branch": "main",
+  "path": "/path/to/worktree",
+  "status": {
+    "branch_line": "## main...origin/main",
+    "dirty": true
+  },
+  "recent_commits": ["abc123 commit message", "..."],
+  "changed_files": ["M src/file.rs", "?? new_file.rs"]
+}
+```
+
+### wt agent context --json
+
+```json
+{
+  "current_worktree": {
+    "path": "/path/to/worktree",
+    "branch": "main",
+    "head": "abc1234",
+    "dirty": true
+  },
+  "other_worktrees": [...],
+  "repository": {
+    "root": "/path/to/repo",
+    "total_worktrees": 3
+  }
+}
+```
+
+### wt agent status --json
+
+```json
+{
+  "current": {
+    "path": "/path/to/worktree",
+    "branch": "main",
+    "dirty": true
+  },
+  "count": 3
+}
+```
+
+---
+
+## Common Workflows
+
+### Switch to Existing Worktree
+
+```bash
+# List worktrees and parse JSON
+wt list --json | jq '.[] | select(.branch | contains("feature"))'
+
+# Then cd to the path (requires shell integration)
+```
+
+### Create Worktree for New Feature
+
+```bash
+# Create worktree, suppressing interactive output
+wt add feature-branch --json --quiet
+```
+
+### Clean Up After PR Merge
+
+```bash
+# Remove worktree non-interactively
+wt remove feature-branch --force --quiet --json
+
+# Prune stale references
+wt prune --quiet --json
+```
+
+### Check Current State
+
+```bash
+# Quick status check
+wt agent status --json
+
+# Full context for understanding layout
+wt agent context
+```
+
+---
+
+## Integration with Coding Agents
+
+### OpenCode Custom Tool Example
+
+Create `.opencode/tool/worktree.ts`:
+
+```typescript
+import { tool } from "@opencode-ai/plugin"
+
+export const list = tool({
+  description: "List git worktrees in current repository",
+  args: {
+    all: tool.schema.boolean().optional().describe("List across all discovered repos"),
+  },
+  async execute(args) {
+    const flags = args.all ? '--all' : ''
+    const result = await Bun.$`wt list ${flags} --json`.text()
+    return result.trim()
+  },
+})
+
+export const context = tool({
+  description: "Get current worktree context",
+  args: {},
+  async execute() {
+    return await Bun.$`wt agent context`.text()
+  },
+})
+
+export const create = tool({
+  description: "Create a new git worktree for a branch",
+  args: {
+    branch: tool.schema.string().describe("Branch name"),
+  },
+  async execute(args) {
+    return await Bun.$`wt add ${args.branch} --json --quiet`.text()
+  },
+})
+```
+
+### Best Practices for Agents
+
+1. **Always use `--json`** for programmatic parsing
+2. **Use `--quiet`** to suppress interactive prompts
+3. **Use `--force`** with `remove` when you're certain (skips confirmation)
+4. **Run `wt agent context`** at session start to understand worktree layout
+5. **Check `dirty` status** before switching worktrees
+
+---
+
 ## Landing the Plane (Session Completion)
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.

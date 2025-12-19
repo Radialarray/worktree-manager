@@ -113,6 +113,10 @@ pub enum Command {
     Preview {
         #[arg(long)]
         path: String,
+
+        /// Output as JSON for programmatic use
+        #[arg(long)]
+        json: bool,
     },
 
     /// Configuration management
@@ -120,6 +124,35 @@ pub enum Command {
         #[command(subcommand)]
         command: ConfigCommand,
     },
+
+    /// Agent-friendly context and status commands
+    Agent {
+        #[command(subcommand)]
+        command: AgentCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum AgentCommand {
+    /// Display compact context about current worktree state
+    Context {
+        /// Output as JSON instead of human-readable format
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Display minimal status suitable for frequent injection
+    Status {
+        /// Output as JSON instead of human-readable format
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Output onboarding instructions for AI agents (similar to bd prime)
+    ///
+    /// Prints a compact workflow reference that can be injected into agent context.
+    /// Includes CLI quick reference, JSON schemas, and common workflows.
+    Onboard,
 }
 
 #[derive(Subcommand, Debug)]

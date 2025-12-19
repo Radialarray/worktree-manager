@@ -1,4 +1,5 @@
 mod add;
+mod agent;
 mod cli;
 mod config;
 mod discovery;
@@ -62,7 +63,9 @@ fn run() -> Result<()> {
             None => crate::remove::interactive_remove(force, json, quiet),
         },
         Command::Prune { json, quiet } => crate::prune::prune_worktrees(json, quiet),
-        Command::Preview { path } => crate::preview::print_preview(std::path::Path::new(&path)),
+        Command::Preview { path, json } => {
+            crate::preview::print_preview(std::path::Path::new(&path), json)
+        }
         Command::Config { command } => {
             use crate::cli::ConfigCommand;
             match command {
@@ -106,6 +109,14 @@ fn run() -> Result<()> {
                     }
                     Ok(())
                 }
+            }
+        }
+        Command::Agent { command } => {
+            use crate::cli::AgentCommand;
+            match command {
+                AgentCommand::Context { json } => crate::agent::show_context(json),
+                AgentCommand::Status { json } => crate::agent::show_status(json),
+                AgentCommand::Onboard => crate::agent::show_onboard(),
             }
         }
     }
