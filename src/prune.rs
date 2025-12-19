@@ -1,6 +1,6 @@
-use anyhow::Result;
 use serde::Serialize;
 
+use crate::error::WtError;
 use crate::git;
 use crate::process;
 
@@ -22,9 +22,10 @@ struct PrunedWorktree {
 /// First lists any prunable worktrees, then runs git worktree prune.
 /// - json: output result as JSON
 /// - quiet: suppress non-essential output
-pub fn prune_worktrees(json: bool, quiet: bool) -> Result<()> {
+pub fn prune_worktrees(json: bool, quiet: bool) -> Result<(), WtError> {
     let repo_root = git::repo_root(None)?;
-    let worktrees = git::worktrees_porcelain(&repo_root)?;
+    let worktrees = git::worktrees_porcelain(&repo_root)
+        .map_err(|e| WtError::git_error_with_source("failed to list worktrees", e))?;
 
     // Filter for stale (prunable) worktrees
     let stale_worktrees: Vec<_> = worktrees
@@ -39,7 +40,13 @@ pub fn prune_worktrees(json: bool, quiet: bool) -> Result<()> {
                 success: true,
                 pruned: vec![],
             };
-            println!("{}", serde_json::to_string(&result)?);
+            println!(
+                "{}",
+                serde_json::to_string(&result).map_err(|e| WtError::io_error_with_source(
+                    "failed to serialize JSON",
+                    e.into()
+                ))?
+            );
         } else if !quiet {
             eprintln!("No stale worktrees found.");
         }
@@ -65,14 +72,19 @@ pub fn prune_worktrees(json: bool, quiet: bool) -> Result<()> {
         .collect();
 
     // Run git worktree prune
-    process::run("git", &["worktree", "prune"], Some(&repo_root))?;
+    process::run("git", &["worktree", "prune"], Some(&repo_root))
+        .map_err(|e| WtError::git_error_with_source("failed to prune worktrees", e))?;
 
     if json {
         let result = PruneResult {
             success: true,
             pruned: pruned_info,
         };
-        println!("{}", serde_json::to_string(&result)?);
+        println!(
+            "{}",
+            serde_json::to_string(&result)
+                .map_err(|e| WtError::io_error_with_source("failed to serialize JSON", e.into()))?
+        );
     } else if !quiet {
         eprintln!("Pruned stale worktrees.");
     }

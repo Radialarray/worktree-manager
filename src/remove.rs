@@ -2,9 +2,10 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::Result;
 use serde::Serialize;
 
+use crate::error::WtError;
 use crate::git;
 use crate::process;
 use crate::worktree::Worktree;
@@ -29,7 +30,7 @@ struct RemoveResult {
 /// - quiet: suppress interactive prompts (without force, will not remove)
 pub fn remove_worktree(target: &str, force: bool, json: bool, quiet: bool) -> Result<()> {
     // Get repo root and list worktrees
-    let repo_root = git::repo_root(None).context("not in a git repository")?;
+    let repo_root = git::repo_root(None)?;
     let worktrees = git::worktrees_porcelain(&repo_root)?;
 
     // Find matching worktree
@@ -56,7 +57,10 @@ pub fn remove_worktree(target: &str, force: bool, json: bool, quiet: bool) -> Re
             println!("{}", serde_json::to_string(&result)?);
             return Ok(());
         }
-        bail!("cannot remove the main worktree (bare repository location)");
+        return Err(WtError::user_error(
+            "cannot remove the main worktree (bare repository location)",
+        )
+        .into());
     }
 
     // Prevent removal of the main branch worktree
@@ -74,10 +78,11 @@ pub fn remove_worktree(target: &str, force: bool, json: bool, quiet: bool) -> Re
             println!("{}", serde_json::to_string(&result)?);
             return Ok(());
         }
-        bail!(
+        return Err(WtError::user_error(format!(
             "cannot remove the main branch worktree (branch '{}')",
             branch_display
-        );
+        ))
+        .into());
     }
 
     // Check for locked worktrees
@@ -93,10 +98,10 @@ pub fn remove_worktree(target: &str, force: bool, json: bool, quiet: bool) -> Re
             println!("{}", serde_json::to_string(&result)?);
             return Ok(());
         }
-        bail!(
+        return Err(WtError::user_error(format!(
             "worktree '{}' is locked; use `git worktree unlock` first or `git worktree remove --force`",
             matching_worktree.path.display()
-        );
+        )).into());
     }
 
     // Confirmation prompt (unless force or quiet)
@@ -185,21 +190,21 @@ pub fn remove_worktree(target: &str, force: bool, json: bool, quiet: bool) -> Re
                     println!("{}", serde_json::to_string(&result)?);
                     return Ok(());
                 }
-                bail!(
+                return Err(WtError::user_error(format!(
                     "worktree has uncommitted changes; use --force to remove anyway\nOriginal error: {}",
                     error_msg
-                );
+                )).into());
             }
 
-            // Re-throw the original error
-            Err(e)
+            // Re-throw the original error as GitError
+            Err(WtError::git_error_with_source("failed to remove worktree", e).into())
         }
     }
 }
 
 /// Interactive remove: show fzf picker with existing worktrees, then remove selected one.
 pub fn interactive_remove(force: bool, json: bool, quiet: bool) -> Result<()> {
-    let repo_root = git::repo_root(None).context("not in a git repository")?;
+    let repo_root = git::repo_root(None)?;
     let worktrees = git::worktrees_porcelain(&repo_root)?;
 
     // Filter out the main/bare worktree and main branch worktree - can't remove those
@@ -221,7 +226,10 @@ pub fn interactive_remove(force: bool, json: bool, quiet: bool) -> Result<()> {
         .collect();
 
     if removable.is_empty() {
-        bail!("no removable worktrees found (only the main worktree exists)");
+        return Err(WtError::not_found(
+            "no removable worktrees found (only the main worktree exists)",
+        )
+        .into());
     }
 
     // Prepare candidates for fzf display
@@ -293,21 +301,27 @@ fn run_fzf_worktree_picker(candidates: &[String]) -> Result<Option<String>> {
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
-        .context("failed to spawn fzf (is it installed?)")?;
+        .map_err(|e| {
+            WtError::user_error_with_source("failed to spawn fzf (is it installed?)", e)
+        })?;
 
     // Write candidates to stdin
     {
         let stdin = child
             .stdin
             .as_mut()
-            .ok_or_else(|| anyhow!("failed to open fzf stdin"))?;
+            .ok_or_else(|| WtError::io_error("failed to open fzf stdin"))?;
 
         for candidate in candidates {
-            writeln!(stdin, "{}", candidate).context("failed to write to fzf stdin")?;
+            writeln!(stdin, "{}", candidate).map_err(|e| {
+                WtError::io_error_with_source("failed to write to fzf stdin", e.into())
+            })?;
         }
     }
 
-    let output = child.wait_with_output().context("failed to wait for fzf")?;
+    let output = child
+        .wait_with_output()
+        .map_err(|e| WtError::io_error_with_source("failed to wait for fzf", e.into()))?;
 
     match output.status.code() {
         Some(0) => {
@@ -319,8 +333,8 @@ fn run_fzf_worktree_picker(candidates: &[String]) -> Result<Option<String>> {
             }
         }
         Some(1) | Some(130) => Ok(None), // No match or cancelled
-        Some(code) => Err(anyhow!("fzf exited with code: {}", code)),
-        None => Err(anyhow!("fzf terminated by signal")),
+        Some(code) => Err(WtError::user_error(format!("fzf exited with code: {}", code)).into()),
+        None => Err(WtError::user_error("fzf terminated by signal").into()),
     }
 }
 
@@ -351,18 +365,19 @@ fn find_worktree<'a>(worktrees: &'a [Worktree], target: &str) -> Result<&'a Work
     }
 
     match matches.len() {
-        0 => bail!("no worktree found matching '{}'", target),
+        0 => Err(WtError::not_found(format!("no worktree found matching '{}'", target)).into()),
         1 => Ok(matches[0]),
         _ => {
             let paths: Vec<_> = matches
                 .iter()
                 .map(|wt| wt.path.display().to_string())
                 .collect();
-            bail!(
+            Err(WtError::user_error(format!(
                 "target '{}' matches multiple worktrees:\n  {}",
                 target,
                 paths.join("\n  ")
-            )
+            ))
+            .into())
         }
     }
 }

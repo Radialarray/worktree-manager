@@ -1,6 +1,6 @@
-use anyhow::{Context, Result};
 use serde::Serialize;
 
+use crate::error::WtError;
 use crate::git;
 
 #[derive(Serialize)]
@@ -25,12 +25,14 @@ struct RepositoryInfo {
 }
 
 /// Display compact context about current worktree state for agents.
-pub fn show_context(json: bool) -> Result<()> {
-    let repo_root = git::repo_root(None).context("not in a git repository")?;
-    let worktrees = git::worktrees_porcelain(&repo_root)?;
+pub fn show_context(json: bool) -> Result<(), WtError> {
+    let repo_root = git::repo_root(None)?;
+    let worktrees = git::worktrees_porcelain(&repo_root)
+        .map_err(|e| WtError::git_error_with_source("failed to list worktrees", e))?;
 
     // Get current directory to determine which worktree we're in
-    let current_dir = std::env::current_dir()?;
+    let current_dir = std::env::current_dir()
+        .map_err(|e| WtError::io_error_with_source("failed to get current directory", e.into()))?;
 
     // Find current worktree
     let current_wt = worktrees
@@ -71,7 +73,9 @@ pub fn show_context(json: bool) -> Result<()> {
                 total_worktrees: worktrees.len(),
             },
         };
-        println!("{}", serde_json::to_string_pretty(&context)?);
+        let json_str = serde_json::to_string_pretty(&context)
+            .map_err(|e| WtError::io_error_with_source("failed to serialize JSON", e.into()))?;
+        println!("{}", json_str);
     } else {
         print_human_readable_context(current_info, other_wts, &repo_root, worktrees.len())?;
     }
@@ -85,7 +89,7 @@ fn print_human_readable_context(
     others: Vec<WorktreeInfo>,
     repo_root: &std::path::Path,
     total: usize,
-) -> Result<()> {
+) -> Result<(), WtError> {
     println!("## Worktree Context");
     println!();
 
@@ -126,22 +130,24 @@ fn print_human_readable_context(
 }
 
 /// Check if a worktree has uncommitted changes.
-fn is_worktree_dirty(path: &std::path::Path) -> Result<bool> {
+fn is_worktree_dirty(path: &std::path::Path) -> Result<bool, WtError> {
     let output = std::process::Command::new("git")
         .args(["status", "--porcelain"])
         .current_dir(path)
         .output()
-        .context("failed to check git status")?;
+        .map_err(|e| WtError::git_error_with_source("failed to check git status", e.into()))?;
 
     Ok(!output.stdout.is_empty())
 }
 
 /// Display minimal status suitable for frequent injection.
-pub fn show_status(json: bool) -> Result<()> {
-    let repo_root = git::repo_root(None).context("not in a git repository")?;
-    let worktrees = git::worktrees_porcelain(&repo_root)?;
+pub fn show_status(json: bool) -> Result<(), WtError> {
+    let repo_root = git::repo_root(None)?;
+    let worktrees = git::worktrees_porcelain(&repo_root)
+        .map_err(|e| WtError::git_error_with_source("failed to list worktrees", e))?;
 
-    let current_dir = std::env::current_dir()?;
+    let current_dir = std::env::current_dir()
+        .map_err(|e| WtError::io_error_with_source("failed to get current directory", e.into()))?;
     let current_wt = worktrees
         .iter()
         .find(|wt| current_dir.starts_with(&wt.path));
@@ -174,7 +180,11 @@ pub fn show_status(json: bool) -> Result<()> {
             count: worktrees.len(),
         };
 
-        println!("{}", serde_json::to_string(&status)?);
+        println!(
+            "{}",
+            serde_json::to_string(&status)
+                .map_err(|e| WtError::io_error_with_source("failed to serialize JSON", e.into()))?
+        );
     } else {
         if let Some(wt) = current_wt {
             let branch = wt
@@ -199,7 +209,7 @@ pub fn show_status(json: bool) -> Result<()> {
 
 /// Output onboarding instructions for AI agents.
 /// Similar to `bd prime` - outputs a compact workflow reference for context injection.
-pub fn show_onboard() -> Result<()> {
+pub fn show_onboard() -> Result<(), WtError> {
     print!("{}", include_str!("agent_onboard.md"));
     Ok(())
 }

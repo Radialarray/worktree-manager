@@ -1,14 +1,16 @@
-#![allow(dead_code)]
-
 use std::path::Path;
 use std::process::{Command, ExitStatus};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::Result;
+
+use crate::error::WtError;
 
 #[derive(Debug, Clone)]
 pub struct CmdOutput {
+    #[allow(dead_code)] // status field kept for completeness, may be used in future
     pub status: ExitStatus,
     pub stdout: String,
+    #[allow(dead_code)] // stderr field kept for completeness, may be used in future
     pub stderr: String,
 }
 
@@ -20,19 +22,20 @@ pub fn run(program: &str, args: &[&str], cwd: Option<&Path>) -> Result<CmdOutput
         cmd.current_dir(cwd);
     }
 
-    let output = cmd
-        .output()
-        .with_context(|| format!("failed to execute {program}"))?;
+    let output = cmd.output().map_err(|e| {
+        WtError::io_error_with_source(format!("failed to execute {}", program), e.into())
+    })?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
     if !output.status.success() {
         let args_str = args.join(" ");
-        return Err(anyhow!(
-            "command failed: {program} {args_str}\nexit: {status}\nstderr:\n{stderr}",
-            status = output.status
-        ));
+        return Err(WtError::git_error(format!(
+            "command failed: {} {}\nexit: {}\nstderr:\n{}",
+            program, args_str, output.status, stderr
+        ))
+        .into());
     }
 
     Ok(CmdOutput {

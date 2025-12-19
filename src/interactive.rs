@@ -1,8 +1,9 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::Result;
 
+use crate::error::WtError;
 use crate::{config, git};
 
 /// Run the interactive worktree picker.
@@ -13,7 +14,8 @@ use crate::{config, git};
 /// * `all` - If true, show worktrees from all discovered repositories
 pub fn run_interactive(all: bool) -> Result<()> {
     // Load config for fzf settings
-    let config = config::load()?;
+    let config = config::load()
+        .map_err(|e| WtError::config_error_with_source("failed to load config", e))?;
 
     if all {
         run_interactive_all(&config)
@@ -29,7 +31,7 @@ fn run_interactive_single(config: &crate::config::Config) -> Result<()> {
     let worktrees = git::worktrees_porcelain(&repo_root)?;
 
     if worktrees.is_empty() {
-        anyhow::bail!("no worktrees found in repository");
+        return Err(WtError::not_found("no worktrees found in repository").into());
     }
 
     // Prepare candidates for fzf
@@ -65,22 +67,25 @@ fn run_interactive_single(config: &crate::config::Config) -> Result<()> {
 fn run_interactive_all(config: &crate::config::Config) -> Result<()> {
     // Check that discovery paths are configured
     if config.auto_discovery.paths.is_empty() {
-        anyhow::bail!(
-            "No auto-discovery paths configured. Run: wt config set-discovery-paths <paths...>"
-        );
+        return Err(WtError::user_error(
+            "No auto-discovery paths configured. Run: wt config set-discovery-paths <paths...>",
+        )
+        .into());
     }
 
     // Discover all repos
     let repos = crate::discovery::discover_repos(&config.auto_discovery.paths)?;
     if repos.is_empty() {
-        anyhow::bail!("No git repositories found in configured discovery paths.");
+        return Err(
+            WtError::not_found("No git repositories found in configured discovery paths.").into(),
+        );
     }
 
     // Collect worktrees from all repos
     let candidates = prepare_all_candidates(&repos)?;
 
     if candidates.is_empty() {
-        anyhow::bail!("No worktrees found in any discovered repository");
+        return Err(WtError::not_found("No worktrees found in any discovered repository").into());
     }
 
     // Run fzf with --expect to capture which key was pressed
@@ -155,7 +160,7 @@ fn extract_path(line: &str) -> Result<String> {
     if parts.len() >= 2 {
         Ok(parts[1].to_string())
     } else {
-        Err(anyhow!("failed to extract path from fzf output: {}", line))
+        Err(WtError::user_error(format!("failed to extract path from fzf output: {}", line)).into())
     }
 }
 
@@ -229,7 +234,7 @@ fn extract_path_from_all(line: &str) -> Result<String> {
     if parts.len() >= 3 {
         Ok(parts[2].to_string())
     } else {
-        Err(anyhow!("failed to extract path from fzf output: {}", line))
+        Err(WtError::user_error(format!("failed to extract path from fzf output: {}", line)).into())
     }
 }
 
@@ -275,25 +280,32 @@ fn run_fzf_with_expect(
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
-        .context("failed to spawn fzf (is it installed?)")?;
+        .map_err(|e| {
+            WtError::user_error_with_source("failed to spawn fzf (is it installed?)", e)
+        })?;
 
     // Write candidates to stdin
     {
         let stdin = child
             .stdin
             .as_mut()
-            .ok_or_else(|| anyhow!("failed to open fzf stdin"))?;
+            .ok_or_else(|| WtError::io_error("failed to open fzf stdin"))?;
 
         for candidate in candidates {
-            writeln!(stdin, "{}", candidate).context("failed to write to fzf stdin")?;
+            writeln!(stdin, "{}", candidate).map_err(|e| {
+                WtError::io_error_with_source(
+                    "failed to write to fzf stdin",
+                    anyhow::Error::from(e),
+                )
+            })?;
         }
         // stdin is dropped here, closing the pipe
     }
 
     // Wait for fzf to complete and capture output
-    let output = child
-        .wait_with_output()
-        .context("failed to wait for fzf to complete")?;
+    let output = child.wait_with_output().map_err(|e| {
+        WtError::io_error_with_source("failed to wait for fzf to complete", anyhow::Error::from(e))
+    })?;
 
     // Handle exit codes
     match output.status.code() {
@@ -333,8 +345,10 @@ fn run_fzf_with_expect(
             // User cancelled (Ctrl-C or Esc)
             Ok(None)
         }
-        Some(code) => Err(anyhow!("fzf exited with unexpected code: {}", code)),
-        None => Err(anyhow!("fzf was terminated by a signal")),
+        Some(code) => {
+            Err(WtError::user_error(format!("fzf exited with unexpected code: {}", code)).into())
+        }
+        None => Err(WtError::user_error("fzf was terminated by a signal").into()),
     }
 }
 

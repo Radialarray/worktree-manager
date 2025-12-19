@@ -3,7 +3,7 @@ mod agent;
 mod cli;
 mod config;
 mod discovery;
-mod fzf;
+mod error;
 mod git;
 mod init;
 mod interactive;
@@ -18,10 +18,46 @@ use anyhow::Result;
 use clap::Parser;
 
 use crate::cli::{Cli, Command};
+use crate::error::WtError;
 
 fn main() {
+    let cli = Cli::parse();
+
+    // Check if --json flag is present in any command for error handling
+    let has_json_flag = cli.has_json_flag();
+
     if let Err(err) = run() {
-        eprintln!("{err:#}");
+        handle_error(err, has_json_flag);
+    }
+}
+
+/// Handle errors with proper exit codes and optional JSON output
+fn handle_error(err: anyhow::Error, json: bool) {
+    // Try to downcast to WtError for structured error handling
+    if let Some(wt_err) = err.downcast_ref::<WtError>() {
+        let exit_code = wt_err.exit_code();
+
+        if json {
+            // Output JSON error format
+            println!("{}", serde_json::to_string(&wt_err.to_json()).unwrap());
+        } else {
+            // Output human-readable error
+            wt_err.print_human();
+        }
+
+        std::process::exit(exit_code);
+    } else {
+        // Fallback for non-WtError errors (shouldn't happen, but handle gracefully)
+        if json {
+            let json_err = serde_json::json!({
+                "error": true,
+                "code": "unknown",
+                "message": format!("{:#}", err)
+            });
+            println!("{}", serde_json::to_string(&json_err).unwrap());
+        } else {
+            eprintln!("error: {:#}", err);
+        }
         std::process::exit(1);
     }
 }
@@ -62,7 +98,9 @@ fn run() -> Result<()> {
             Some(t) => crate::remove::remove_worktree(&t, force, json, quiet),
             None => crate::remove::interactive_remove(force, json, quiet),
         },
-        Command::Prune { json, quiet } => crate::prune::prune_worktrees(json, quiet),
+        Command::Prune { json, quiet } => {
+            crate::prune::prune_worktrees(json, quiet).map_err(|e| anyhow::anyhow!(e))
+        }
         Command::Preview { path, json } => {
             crate::preview::print_preview(std::path::Path::new(&path), json)
         }
@@ -114,9 +152,15 @@ fn run() -> Result<()> {
         Command::Agent { command } => {
             use crate::cli::AgentCommand;
             match command {
-                AgentCommand::Context { json } => crate::agent::show_context(json),
-                AgentCommand::Status { json } => crate::agent::show_status(json),
-                AgentCommand::Onboard => crate::agent::show_onboard(),
+                AgentCommand::Context { json } => {
+                    crate::agent::show_context(json).map_err(|e| anyhow::anyhow!(e))
+                }
+                AgentCommand::Status { json } => {
+                    crate::agent::show_status(json).map_err(|e| anyhow::anyhow!(e))
+                }
+                AgentCommand::Onboard => {
+                    crate::agent::show_onboard().map_err(|e| anyhow::anyhow!(e))
+                }
             }
         }
     }

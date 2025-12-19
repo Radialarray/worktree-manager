@@ -2,9 +2,10 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::Result;
 use serde::Serialize;
 
+use crate::error::WtError;
 use crate::{git, process};
 
 /// Result of adding a worktree (for JSON output)
@@ -24,7 +25,7 @@ pub fn interactive_add(
     json: bool,
     quiet: bool,
 ) -> Result<()> {
-    let repo_root = git::repo_root(None).context("failed to determine repository root")?;
+    let repo_root = git::repo_root(None)?;
 
     // Get available branches (local + remote, excluding ones that already have worktrees)
     let mut branches = get_available_branches(&repo_root)?;
@@ -87,7 +88,7 @@ pub fn add_worktree(
     quiet: bool,
 ) -> Result<()> {
     // Get the current repository root
-    let repo_root = git::repo_root(None).context("failed to determine repository root")?;
+    let repo_root = git::repo_root(None)?;
 
     // Determine the target path
     let target_path = if let Some(custom_path) = path {
@@ -98,10 +99,11 @@ pub fn add_worktree(
 
     // Check if the path already exists
     if target_path.exists() {
-        bail!(
+        return Err(WtError::user_error(format!(
             "path already exists: {}\nChoose a different path with --path",
             target_path.display()
-        );
+        ))
+        .into());
     }
 
     // Check if a worktree for this branch already exists
@@ -124,12 +126,19 @@ pub fn add_worktree(
                 "--track",
                 "-b",
                 branch,
-                target_path.to_str().context("invalid path encoding")?,
+                target_path
+                    .to_str()
+                    .ok_or_else(|| WtError::io_error("invalid path encoding"))?,
                 &remote_branch,
             ],
             Some(&repo_root),
         )
-        .with_context(|| format!("failed to add worktree tracking {}", remote_branch))?;
+        .map_err(|e| {
+            WtError::git_error_with_source(
+                format!("failed to add worktree tracking {}", remote_branch),
+                e,
+            )
+        })?;
     } else if branch_exists(&repo_root, branch)? {
         // Branch exists, just add worktree for it
         process::run(
@@ -137,12 +146,14 @@ pub fn add_worktree(
             &[
                 "worktree",
                 "add",
-                target_path.to_str().context("invalid path encoding")?,
+                target_path
+                    .to_str()
+                    .ok_or_else(|| WtError::io_error("invalid path encoding"))?,
                 branch,
             ],
             Some(&repo_root),
         )
-        .context("failed to add worktree")?;
+        .map_err(|e| WtError::git_error_with_source("failed to add worktree", e))?;
     } else {
         // Branch doesn't exist, create it with -b
         process::run(
@@ -152,11 +163,18 @@ pub fn add_worktree(
                 "add",
                 "-b",
                 branch,
-                target_path.to_str().context("invalid path encoding")?,
+                target_path
+                    .to_str()
+                    .ok_or_else(|| WtError::io_error("invalid path encoding"))?,
             ],
             Some(&repo_root),
         )
-        .with_context(|| format!("failed to create worktree with new branch '{}'", branch))?;
+        .map_err(|e| {
+            WtError::git_error_with_source(
+                format!("failed to create worktree with new branch '{}'", branch),
+                e,
+            )
+        })?;
     }
 
     if json {
@@ -180,13 +198,13 @@ fn calculate_default_path(repo_root: &Path, branch: &str) -> Result<PathBuf> {
     // Get the parent directory of the repo root
     let repo_parent = repo_root
         .parent()
-        .context("repository root has no parent directory")?;
+        .ok_or_else(|| WtError::io_error("repository root has no parent directory"))?;
 
     // Get the repository name (last component of repo root)
     let repo_name = repo_root
         .file_name()
         .and_then(|n| n.to_str())
-        .context("failed to extract repository name")?;
+        .ok_or_else(|| WtError::io_error("failed to extract repository name"))?;
 
     // Sanitize the branch name: replace / with -
     let sanitized_branch = branch.replace('/', "-");
@@ -204,7 +222,7 @@ fn branch_exists(repo_root: &Path, branch: &str) -> Result<bool> {
         .args(["show-ref", "--verify", "--quiet", &local_ref])
         .current_dir(repo_root)
         .status()
-        .context("failed to run git show-ref")?;
+        .map_err(|e| WtError::git_error_with_source("failed to run git show-ref", e.into()))?;
 
     if result.success() {
         return Ok(true);
@@ -215,7 +233,7 @@ fn branch_exists(repo_root: &Path, branch: &str) -> Result<bool> {
         .args(["branch", "-r", "--list", &format!("*/{}", branch)])
         .current_dir(repo_root)
         .output()
-        .context("failed to run git branch -r")?;
+        .map_err(|e| WtError::git_error_with_source("failed to run git branch -r", e.into()))?;
 
     let remote_branches = String::from_utf8_lossy(&output.stdout);
     Ok(!remote_branches.trim().is_empty())
@@ -223,18 +241,19 @@ fn branch_exists(repo_root: &Path, branch: &str) -> Result<bool> {
 
 /// Check if a worktree for the given branch already exists.
 fn check_existing_worktree(repo_root: &Path, branch: &str) -> Result<()> {
-    let worktrees =
-        git::worktrees_porcelain(repo_root).context("failed to list existing worktrees")?;
+    let worktrees = git::worktrees_porcelain(repo_root)
+        .map_err(|e| WtError::git_error_with_source("failed to list existing worktrees", e))?;
 
     for wt in worktrees {
         // Branch is stored as refs/heads/<branch> or refs/remotes/<remote>/<branch>
         let branch_ref = format!("refs/heads/{}", branch);
         if wt.branch.as_deref() == Some(&branch_ref) {
-            bail!(
+            return Err(WtError::user_error(format!(
                 "worktree for branch '{}' already exists at: {}",
                 branch,
                 wt.path.display()
-            );
+            ))
+            .into());
         }
     }
 
@@ -245,7 +264,8 @@ fn check_existing_worktree(repo_root: &Path, branch: &str) -> Result<()> {
 /// Returns local and remote branches that don't already have worktrees.
 fn get_available_branches(repo_root: &Path) -> Result<Vec<String>> {
     // Get existing worktree branches to exclude them
-    let worktrees = git::worktrees_porcelain(repo_root)?;
+    let worktrees = git::worktrees_porcelain(repo_root)
+        .map_err(|e| WtError::git_error_with_source("failed to list existing worktrees", e))?;
     let existing_branches: std::collections::HashSet<String> = worktrees
         .iter()
         .filter_map(|wt| {
@@ -264,7 +284,7 @@ fn get_available_branches(repo_root: &Path) -> Result<Vec<String>> {
         .args(["branch", "--format=%(refname:short)"])
         .current_dir(repo_root)
         .output()
-        .context("failed to list local branches")?;
+        .map_err(|e| WtError::git_error_with_source("failed to list local branches", e.into()))?;
 
     for line in String::from_utf8_lossy(&output.stdout).lines() {
         let branch = line.trim();
@@ -278,7 +298,7 @@ fn get_available_branches(repo_root: &Path) -> Result<Vec<String>> {
         .args(["branch", "-r", "--format=%(refname:short)"])
         .current_dir(repo_root)
         .output()
-        .context("failed to list remote branches")?;
+        .map_err(|e| WtError::git_error_with_source("failed to list remote branches", e.into()))?;
 
     for line in String::from_utf8_lossy(&output.stdout).lines() {
         let branch = line.trim();
@@ -312,21 +332,27 @@ fn run_fzf_branch_picker(branches: &[String]) -> Result<Option<String>> {
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
-        .context("failed to spawn fzf (is it installed?)")?;
+        .map_err(|e| {
+            WtError::user_error(format!("failed to spawn fzf (is it installed?): {}", e))
+        })?;
 
     // Write branches to stdin
     {
         let stdin = child
             .stdin
             .as_mut()
-            .ok_or_else(|| anyhow!("failed to open fzf stdin"))?;
+            .ok_or_else(|| WtError::io_error("failed to open fzf stdin"))?;
 
         for branch in branches {
-            writeln!(stdin, "{}", branch).context("failed to write to fzf stdin")?;
+            writeln!(stdin, "{}", branch).map_err(|e| {
+                WtError::io_error_with_source("failed to write to fzf stdin", e.into())
+            })?;
         }
     }
 
-    let output = child.wait_with_output().context("failed to wait for fzf")?;
+    let output = child
+        .wait_with_output()
+        .map_err(|e| WtError::io_error_with_source("failed to wait for fzf", e.into()))?;
 
     match output.status.code() {
         Some(0) => {
@@ -338,8 +364,8 @@ fn run_fzf_branch_picker(branches: &[String]) -> Result<Option<String>> {
             }
         }
         Some(1) | Some(130) => Ok(None), // No match or cancelled
-        Some(code) => Err(anyhow!("fzf exited with code: {}", code)),
-        None => Err(anyhow!("fzf terminated by signal")),
+        Some(code) => Err(WtError::user_error(format!("fzf exited with code: {}", code)).into()),
+        None => Err(WtError::user_error("fzf terminated by signal").into()),
     }
 }
 

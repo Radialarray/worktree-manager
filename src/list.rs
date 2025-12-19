@@ -1,7 +1,8 @@
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 
+use crate::error::WtError;
 use crate::{config, discovery, git};
 
 pub fn list_worktrees(json: bool, all: bool) -> Result<()> {
@@ -13,8 +14,9 @@ pub fn list_worktrees(json: bool, all: bool) -> Result<()> {
 }
 
 fn list_single_repo_worktrees(json: bool) -> Result<()> {
-    let repo_root = git::repo_root(None).context("not inside a git repository")?;
-    let worktrees = git::worktrees_porcelain(&repo_root).context("failed to parse worktrees")?;
+    let repo_root = git::repo_root(None)?;
+    let worktrees = git::worktrees_porcelain(&repo_root)
+        .map_err(|e| WtError::git_error_with_source("failed to parse worktrees", e))?;
 
     if json {
         // Minimal JSON array of objects; we can refine schema later.
@@ -68,9 +70,10 @@ fn list_single_repo_worktrees(json: bool) -> Result<()> {
 fn list_all_worktrees(json: bool) -> Result<()> {
     let config = config::load()?;
     if config.auto_discovery.paths.is_empty() {
-        anyhow::bail!(
-            "No auto-discovery paths configured. Run: wt config set-discovery-paths <paths...>"
-        );
+        return Err(WtError::user_error(
+            "No auto-discovery paths configured. Run: wt config set-discovery-paths <paths...>",
+        )
+        .into());
     }
 
     let repos = discovery::discover_repos(&config.auto_discovery.paths)?;

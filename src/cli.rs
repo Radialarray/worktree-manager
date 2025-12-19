@@ -9,6 +9,26 @@ pub struct Cli {
     pub command: Option<Command>,
 }
 
+impl Cli {
+    /// Check if the command has a --json flag set
+    pub fn has_json_flag(&self) -> bool {
+        match &self.command {
+            Some(Command::List { json, .. }) => *json,
+            Some(Command::Add { json, .. }) => *json,
+            Some(Command::Remove { json, .. }) => *json,
+            Some(Command::Prune { json, .. }) => *json,
+            Some(Command::Preview { json, .. }) => *json,
+            Some(Command::Config {
+                command: ConfigCommand::Show { json },
+            }) => *json,
+            Some(Command::Agent {
+                command: AgentCommand::Context { json } | AgentCommand::Status { json },
+            }) => *json,
+            _ => false,
+        }
+    }
+}
+
 /// Supported shells for shell integration
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum Shell {

@@ -1,20 +1,25 @@
-#![allow(dead_code)]
-
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 
+use crate::error::WtError;
 use crate::process;
 use crate::worktree::{self, Worktree};
 
 pub fn repo_root(cwd: Option<&Path>) -> Result<PathBuf> {
-    let out = process::run_stdout("git", &["rev-parse", "--show-toplevel"], cwd)?;
+    let out = process::run_stdout("git", &["rev-parse", "--show-toplevel"], cwd)
+        .map_err(|_| anyhow::Error::new(WtError::not_found("not in a git repository")))?;
     Ok(PathBuf::from(out.trim()))
 }
 
 pub fn worktrees_porcelain(repo_root: &Path) -> Result<Vec<Worktree>> {
     let out = process::run_stdout("git", &["worktree", "list", "--porcelain"], Some(repo_root))
-        .context("failed to list worktrees")?;
+        .map_err(|e| {
+            anyhow::Error::new(WtError::git_error_with_source(
+                "failed to list worktrees",
+                e,
+            ))
+        })?;
     worktree::parse_porcelain(&out)
 }
 
