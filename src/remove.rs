@@ -59,6 +59,24 @@ pub fn remove_worktree(target: &str, force: bool, json: bool, quiet: bool) -> Re
         bail!("cannot remove the main worktree (bare repository location)");
     }
 
+    // Prevent removal of the main branch worktree
+    if let Some(branch) = &matching_worktree.branch {
+        if git::is_main_branch(&repo_root, branch) {
+            if json {
+                let result = RemoveResult {
+                    success: false,
+                    removed: false,
+                    branch: Some(branch_display),
+                    path: Some(path_display),
+                    reason: Some("cannot remove the main branch worktree".into()),
+                };
+                println!("{}", serde_json::to_string(&result)?);
+                return Ok(());
+            }
+            bail!("cannot remove the main branch worktree (branch '{}')", branch_display);
+        }
+    }
+
     // Check for locked worktrees
     if matching_worktree.locked {
         if json {
@@ -181,8 +199,23 @@ pub fn interactive_remove(force: bool, json: bool, quiet: bool) -> Result<()> {
     let repo_root = git::repo_root(None).context("not in a git repository")?;
     let worktrees = git::worktrees_porcelain(&repo_root)?;
 
-    // Filter out the main/bare worktree - can't remove that
-    let removable: Vec<_> = worktrees.iter().filter(|wt| !wt.bare).collect();
+    // Filter out the main/bare worktree and main branch worktree - can't remove those
+    let removable: Vec<_> = worktrees
+        .iter()
+        .filter(|wt| {
+            // Can't remove bare worktree
+            if wt.bare {
+                return false;
+            }
+            // Can't remove main branch worktree
+            if let Some(branch) = &wt.branch {
+                if git::is_main_branch(&repo_root, branch) {
+                    return false;
+                }
+            }
+            true
+        })
+        .collect();
 
     if removable.is_empty() {
         bail!("no removable worktrees found (only the main worktree exists)");
