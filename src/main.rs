@@ -29,10 +29,17 @@ fn run() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command.unwrap_or(Command::Interactive { all: false }) {
-        Command::Init { shell } => {
-            print!("{}", crate::init::shell_init(shell));
-            Ok(())
-        }
+        Command::Init { shell } => match shell {
+            Some(s) => {
+                // Explicit shell - output code to stdout (for manual setup)
+                print!("{}", crate::init::shell_init(s));
+                Ok(())
+            }
+            None => {
+                // No shell specified - run interactive setup
+                crate::init::run_interactive_setup()
+            }
+        },
         Command::Interactive { all } => crate::interactive::run_interactive(all),
         Command::List { json, all } => crate::list::list_worktrees(json, all),
         Command::Add {

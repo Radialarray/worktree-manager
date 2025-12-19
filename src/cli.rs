@@ -3,9 +3,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 #[derive(Parser, Debug)]
 #[command(name = "wt", about = "Git worktree manager", version)]
 #[command(after_help = "SHELL INTEGRATION:
-  eval \"$(wt init zsh)\"    # add to ~/.zshrc
-  eval \"$(wt init bash)\"   # add to ~/.bashrc
-  wt init fish | source    # add to ~/.config/fish/config.fish")]
+  Run 'wt init' to set up shell integration (auto-detects your shell).")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Command>,
@@ -21,15 +19,19 @@ pub enum Shell {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// Print shell integration code for the given shell
+    /// Set up shell integration for wt
     ///
-    /// Add this to your shell configuration:
-    ///   Zsh:  eval "$(wt init zsh)"   # in ~/.zshrc
-    ///   Bash: eval "$(wt init bash)"  # in ~/.bashrc
-    ///   Fish: wt init fish | source   # in ~/.config/fish/config.fish
+    /// Without arguments: auto-detects shell and offers to add integration to config file.
+    /// With shell argument: prints the integration code to stdout (for manual setup).
+    ///
+    /// Examples:
+    ///   wt init           # Interactive setup (recommended)
+    ///   wt init zsh       # Print zsh integration code
+    ///   wt init bash      # Print bash integration code
+    ///   wt init fish      # Print fish integration code
     Init {
-        /// Shell to generate integration for
-        shell: Shell,
+        /// Shell to generate integration for (optional - auto-detects if not provided)
+        shell: Option<Shell>,
     },
 
     /// Interactive picker (fzf)
