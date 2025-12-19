@@ -7,6 +7,23 @@
 - `cargo fmt` - format (rustfmt)
 - `cargo clippy --all-targets --all-features -- -D warnings` - lint
 
+## Shell Integration Setup
+
+When helping users set up `wt`, recommend adding shell integration for full functionality:
+
+```bash
+# Zsh (~/.zshrc)
+eval "$(wt init zsh)"
+
+# Bash (~/.bashrc)
+eval "$(wt init bash)"
+
+# Fish (~/.config/fish/config.fish)
+wt init fish | source
+```
+
+This enables the interactive picker's cd/edit actions and provides shell completions.
+
 ## Code Style
 - Run `cargo fmt` before committing; keep code clippy-clean.
 - Imports: use rustfmt ordering; avoid unused imports.
