@@ -2,167 +2,84 @@
 
 ## Quick Reference
 
-| Command | Description | Agent Flags |
-|---------|-------------|-------------|
-| `wt list` | List all worktrees | `--json`, `--all` |
+| Command | Description | Flags |
+|---------|-------------|-------|
+| `wt list [--all]` | List worktrees | `--json` |
 | `wt add <branch>` | Create worktree | `--json`, `--quiet` |
 | `wt remove <target>` | Remove worktree | `--json`, `--quiet`, `--force` |
 | `wt prune` | Clean stale worktrees | `--json`, `--quiet` |
-| `wt preview --path <p>` | Preview worktree | `--json` |
-| `wt agent context` | Full worktree context | `--json` |
+| `wt agent context` | Full worktree state | `--json` |
 | `wt agent status` | Minimal status | `--json` |
-| `wt config <paths...>` | Set auto-discovery paths for --all | - |
+| `wt config <paths>` | Set auto-discovery paths | - |
 
-## Interactive Mode (Human Users)
+**Key flags:** `--json` (machine-readable), `--quiet` (non-interactive), `--force` (skip confirmations)
 
-When shell integration is installed (`wt init`), run `wt` without arguments for an interactive picker:
-- **Enter**: Switch to selected worktree (`cd` action)
-- **Ctrl-E**: Open selected worktree in `$EDITOR` (edit action)
-
-Agents typically use non-interactive commands with `--json` and `--quiet` flags instead.
-
-## JSON Output Examples
-
-### wt list --json
-```json
-[{"path": "/path/to/wt", "head": "abc123", "branch": "refs/heads/main", "is_main": true}]
-```
-
-### wt add <branch> --json --quiet
-```json
-{"success": true, "worktree": {"path": "/path/to/wt", "branch": "feature-x"}}
-```
-
-### wt remove <target> --json --force
-```json
-{"success": true, "removed": true, "branch": "feature-x", "path": "/path/to/wt"}
-```
-
-### wt agent status --json
-```json
-{"current": {"path": "/path/to/wt", "branch": "main", "dirty": true}, "count": 3}
-```
-
-## Configuration
-
-For `wt list --all` and `wt interactive --all`, configure auto-discovery paths:
+## JSON Schemas
 
 ```bash
-# Set paths to search for git repositories
-wt config ~/projects ~/work
-
-# Now you can list/browse across all repos
-wt list --all
-wt interactive --all
-```
-
-Advanced: Edit `~/.config/worktree-manager/config.yaml` to customize FZF appearance
-
-## Common Workflows
-
-```bash
-# Create worktree for feature branch
-wt add feature-x --json --quiet
-
-# List all worktrees
+# List worktrees
 wt list --json
+# [{"path": "/path", "head": "abc123", "branch": "refs/heads/main", "is_main": true}]
 
-# Check current state
+# Add worktree
+wt add feature-x --json --quiet
+# {"success": true, "worktree": {"path": "/path", "branch": "feature-x"}}
+
+# Current status
 wt agent status --json
+# {"current": {"path": "/path", "branch": "main", "dirty": true}, "count": 3}
+```
 
-# Remove worktree after PR merge
-wt remove feature-x --force --json
+## Basic Workflows
 
-# Clean up stale worktrees
+```bash
+# Session start
+wt agent context              # Get worktree state
+git status                   # Check for uncommitted changes
+
+# Create and work
+wt add feature-x --json --quiet
+cd /path/to/feature-x
+# ... do work ...
+git add . && git commit && git push
+
+# Session end
+wt remove feature-x --force --quiet --json
 wt prune --quiet --json
 ```
 
-## Best Practices
+## Multi-Agent Patterns
 
-1. Always use `--json` for programmatic parsing
-2. Use `--quiet` to suppress interactive prompts
-3. Use `--force` with remove when certain (skips confirmation)
-4. Run `wt agent context` at session start for full layout
-5. Check `dirty` status before switching worktrees
-
-## Multi-Agent Workflows
-
-Worktrees enable parallel work with multiple AI agents in isolated environments.
-
-### Benefits
-- **Parallel Work** - Multiple agents work on different features simultaneously
-- **Isolation** - Each agent has its own working directory and branch
-- **Context Clarity** - Agent knows exactly which branch/feature it's working on
-- **Easy Cleanup** - Remove worktree when done without affecting others
-
-### Pattern: One Agent Per Worktree
+**One Agent Per Worktree:** Each agent creates and owns a separate worktree for parallel work.
 
 ```bash
-# Agent 1 works on feature-auth (Session 1)
-wt add feature-auth --json --quiet
-cd /path/to/feature-auth-worktree
-# Agent 1 does its work...
-
-# Agent 2 works on feature-api (Session 2 - separate process)
-wt add feature-api --json --quiet
-cd /path/to/feature-api-worktree
-# Agent 2 does its work...
-```
-
-### Session Start Pattern
-
-```bash
-wt agent context      # Understand current worktree state
-git status           # Verify working directory is clean
-wt list --json       # See all available worktrees
-```
-
-### Session End Pattern
-
-```bash
-git status                                # Check uncommitted changes
-wt list --json                            # Verify worktree state
-wt remove <branch> --force --quiet --json # Clean up temporary worktree
-wt prune --quiet --json                   # Prune stale references
-```
-
-### Avoiding Cross-Worktree Confusion
-
-**Do:**
-- ✅ Verify current worktree at session start with `wt agent context`
-- ✅ Use absolute paths when referencing files across worktrees
-- ✅ Don't `cd` between worktrees within a single agent session
-- ✅ Each agent session owns exactly one worktree
-- ✅ Clean up temporary worktrees when done
-
-**Don't:**
-- ❌ Assume you're in the main worktree without checking
-- ❌ Accidentally commit to the wrong branch
-- ❌ Leave temporary worktrees around after completion
-- ❌ Have multiple agents modify the same worktree simultaneously
-
-### Example: Parallel Feature Development
-
-```bash
-# Agent Manager creates two worktrees
-wt add feature-auth --json --quiet
-wt add feature-api --json --quiet
-
-# Agent 1 (Session 1)
-cd /repo/worktrees/feature-auth
-wt agent context  # Confirms: working on feature-auth
-# ... implement authentication ...
-git add . && git commit -m "feat(auth): add JWT validation"
-git push
-
-# Agent 2 (Session 2 - different process)
-cd /repo/worktrees/feature-api  
-wt agent context  # Confirms: working on feature-api
-# ... implement API endpoints ...
-git add . && git commit -m "feat(api): add user endpoints"
-git push
-
-# Both complete independently, then clean up
+# Agent 1
+wt add feature-auth --json --quiet && cd /path/to/feature-auth
+wt agent context  # Verify location
+# ... work ...
 wt remove feature-auth --force --quiet
+
+# Agent 2 (parallel, different process)
+wt add feature-api --json --quiet && cd /path/to/feature-api
+wt agent context  # Verify location
+# ... work ...
 wt remove feature-api --force --quiet
 ```
+
+**Best Practices:**
+- ✅ Run `wt agent context` at session start
+- ✅ Each agent owns exactly one worktree
+- ✅ Clean up temporary worktrees when done
+- ❌ Don't `cd` between worktrees in one session
+- ❌ Don't modify the same worktree from multiple agents
+
+## Configuration
+
+For `wt list --all` or `wt interactive --all` (cross-repo discovery):
+
+```bash
+wt config ~/projects ~/work
+wt list --all
+```
+
+Config file: `~/.config/worktree-manager/config.yaml` (optional, for FZF customization)
