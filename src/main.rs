@@ -1,5 +1,7 @@
 mod cli;
+mod git;
 mod process;
+mod worktree;
 
 use anyhow::Result;
 use clap::Parser;
