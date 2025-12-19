@@ -48,13 +48,19 @@ fn run() -> Result<()> {
             track,
             json,
             quiet,
-        } => crate::add::add_worktree(&branch, path.as_deref(), track.as_deref(), json, quiet),
+        } => match branch {
+            Some(b) => crate::add::add_worktree(&b, path.as_deref(), track.as_deref(), json, quiet),
+            None => crate::add::interactive_add(path.as_deref(), track.as_deref(), json, quiet),
+        },
         Command::Remove {
             target,
             force,
             json,
             quiet,
-        } => crate::remove::remove_worktree(&target, force, json, quiet),
+        } => match target {
+            Some(t) => crate::remove::remove_worktree(&t, force, json, quiet),
+            None => crate::remove::interactive_remove(force, json, quiet),
+        },
         Command::Prune { json, quiet } => crate::prune::prune_worktrees(json, quiet),
         Command::Preview { path } => crate::preview::print_preview(std::path::Path::new(&path)),
         Command::Config { command } => {

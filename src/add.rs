@@ -1,6 +1,8 @@
+use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use serde::Serialize;
 
 use crate::{git, process};
@@ -13,6 +15,46 @@ struct AddResult {
     path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     tracking: Option<String>,
+}
+
+/// Interactive add: show fzf picker with available branches, then create worktree.
+pub fn interactive_add(
+    path: Option<&str>,
+    track: Option<&str>,
+    json: bool,
+    quiet: bool,
+) -> Result<()> {
+    let repo_root = git::repo_root(None).context("failed to determine repository root")?;
+
+    // Get available branches (local + remote, excluding ones that already have worktrees)
+    let branches = get_available_branches(&repo_root)?;
+
+    if branches.is_empty() {
+        bail!("no branches available for new worktrees");
+    }
+
+    // Run fzf to select a branch
+    let selected = run_fzf_branch_picker(&branches)?;
+
+    match selected {
+        Some(branch) => {
+            // Strip remote prefix if present (e.g., "origin/feature" -> "feature")
+            let branch_name = if let Some(stripped) = branch.strip_prefix("origin/") {
+                stripped
+            } else if let Some(pos) = branch.find('/') {
+                // Handle other remotes like "upstream/feature"
+                &branch[pos + 1..]
+            } else {
+                &branch
+            };
+
+            add_worktree(branch_name, path, track, json, quiet)
+        }
+        None => {
+            // User cancelled
+            Ok(())
+        }
+    }
 }
 
 /// Add a new worktree for the given branch.
@@ -181,6 +223,108 @@ fn check_existing_worktree(repo_root: &Path, branch: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Get available branches for creating new worktrees.
+/// Returns local and remote branches that don't already have worktrees.
+fn get_available_branches(repo_root: &Path) -> Result<Vec<String>> {
+    // Get existing worktree branches to exclude them
+    let worktrees = git::worktrees_porcelain(repo_root)?;
+    let existing_branches: std::collections::HashSet<String> = worktrees
+        .iter()
+        .filter_map(|wt| {
+            wt.branch.as_ref().and_then(|b| {
+                b.strip_prefix("refs/heads/")
+                    .or_else(|| b.strip_prefix("refs/remotes/"))
+                    .map(|s| s.to_string())
+            })
+        })
+        .collect();
+
+    let mut branches = Vec::new();
+
+    // Get local branches
+    let output = Command::new("git")
+        .args(["branch", "--format=%(refname:short)"])
+        .current_dir(repo_root)
+        .output()
+        .context("failed to list local branches")?;
+
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        let branch = line.trim();
+        if !branch.is_empty() && !existing_branches.contains(branch) {
+            branches.push(branch.to_string());
+        }
+    }
+
+    // Get remote branches
+    let output = Command::new("git")
+        .args(["branch", "-r", "--format=%(refname:short)"])
+        .current_dir(repo_root)
+        .output()
+        .context("failed to list remote branches")?;
+
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        let branch = line.trim();
+        // Skip HEAD pointers and already existing worktrees
+        if !branch.is_empty() && !branch.contains("HEAD") {
+            // Extract just the branch name part for comparison
+            let branch_name = branch.split('/').skip(1).collect::<Vec<_>>().join("/");
+            if !existing_branches.contains(&branch_name) && !existing_branches.contains(branch) {
+                branches.push(branch.to_string());
+            }
+        }
+    }
+
+    // Sort and deduplicate
+    branches.sort();
+    branches.dedup();
+
+    Ok(branches)
+}
+
+/// Run fzf to let user pick a branch.
+fn run_fzf_branch_picker(branches: &[String]) -> Result<Option<String>> {
+    let mut child = Command::new("fzf")
+        .args([
+            "--height=40%",
+            "--layout=reverse",
+            "--prompt=Branch> ",
+            "--header=Select branch to create worktree for (Esc to cancel)",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .context("failed to spawn fzf (is it installed?)")?;
+
+    // Write branches to stdin
+    {
+        let stdin = child
+            .stdin
+            .as_mut()
+            .ok_or_else(|| anyhow!("failed to open fzf stdin"))?;
+
+        for branch in branches {
+            writeln!(stdin, "{}", branch).context("failed to write to fzf stdin")?;
+        }
+    }
+
+    let output = child.wait_with_output().context("failed to wait for fzf")?;
+
+    match output.status.code() {
+        Some(0) => {
+            let selection = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if selection.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(selection))
+            }
+        }
+        Some(1) | Some(130) => Ok(None), // No match or cancelled
+        Some(code) => Err(anyhow!("fzf exited with code: {}", code)),
+        None => Err(anyhow!("fzf terminated by signal")),
+    }
 }
 
 #[cfg(test)]

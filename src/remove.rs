@@ -1,7 +1,8 @@
 use std::io::{self, Write};
 use std::path::Path;
+use std::process::{Command, Stdio};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use serde::Serialize;
 
 use crate::git;
@@ -172,6 +173,118 @@ pub fn remove_worktree(target: &str, force: bool, json: bool, quiet: bool) -> Re
             // Re-throw the original error
             Err(e)
         }
+    }
+}
+
+/// Interactive remove: show fzf picker with existing worktrees, then remove selected one.
+pub fn interactive_remove(force: bool, json: bool, quiet: bool) -> Result<()> {
+    let repo_root = git::repo_root(None).context("not in a git repository")?;
+    let worktrees = git::worktrees_porcelain(&repo_root)?;
+
+    // Filter out the main/bare worktree - can't remove that
+    let removable: Vec<_> = worktrees.iter().filter(|wt| !wt.bare).collect();
+
+    if removable.is_empty() {
+        bail!("no removable worktrees found (only the main worktree exists)");
+    }
+
+    // Prepare candidates for fzf display
+    let candidates = prepare_worktree_candidates(&removable);
+
+    // Run fzf to select a worktree
+    let selected = run_fzf_worktree_picker(&candidates)?;
+
+    match selected {
+        Some(line) => {
+            // Extract the branch name from the selected line (first column)
+            let branch = line.split("  ").next().unwrap_or(&line).trim();
+            remove_worktree(branch, force, json, quiet)
+        }
+        None => {
+            // User cancelled
+            Ok(())
+        }
+    }
+}
+
+/// Prepare worktree candidates for fzf display (branch + path).
+fn prepare_worktree_candidates(worktrees: &[&Worktree]) -> Vec<String> {
+    let max_branch_len = worktrees
+        .iter()
+        .map(|wt| format_branch_name(wt).len())
+        .max()
+        .unwrap_or(0);
+
+    worktrees
+        .iter()
+        .map(|wt| {
+            let branch = format_branch_name(wt);
+            let path = wt.path.display();
+            let locked = if wt.locked { " [locked]" } else { "" };
+            format!(
+                "{:width$}  {}{}",
+                branch,
+                path,
+                locked,
+                width = max_branch_len
+            )
+        })
+        .collect()
+}
+
+/// Format branch name for display.
+fn format_branch_name(wt: &Worktree) -> String {
+    match &wt.branch {
+        Some(branch_ref) => branch_ref
+            .strip_prefix("refs/heads/")
+            .or_else(|| branch_ref.strip_prefix("refs/remotes/"))
+            .unwrap_or(branch_ref)
+            .to_string(),
+        None => "(detached)".to_string(),
+    }
+}
+
+/// Run fzf to let user pick a worktree to remove.
+fn run_fzf_worktree_picker(candidates: &[String]) -> Result<Option<String>> {
+    let mut child = Command::new("fzf")
+        .args([
+            "--height=40%",
+            "--layout=reverse",
+            "--prompt=Remove> ",
+            "--header=Select worktree to remove (Esc to cancel)",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .context("failed to spawn fzf (is it installed?)")?;
+
+    // Write candidates to stdin
+    {
+        let stdin = child
+            .stdin
+            .as_mut()
+            .ok_or_else(|| anyhow!("failed to open fzf stdin"))?;
+
+        for candidate in candidates {
+            writeln!(stdin, "{}", candidate).context("failed to write to fzf stdin")?;
+        }
+    }
+
+    let output = child.wait_with_output().context("failed to wait for fzf")?;
+
+    match output.status.code() {
+        Some(0) => {
+            let selection = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if selection.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(selection))
+            }
+        }
+        Some(1) | Some(130) => Ok(None), // No match or cancelled
+        Some(code) => Err(anyhow!("fzf exited with code: {}", code)),
+        None => Err(anyhow!("fzf terminated by signal")),
     }
 }
 

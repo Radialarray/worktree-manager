@@ -53,8 +53,12 @@ pub enum Command {
     },
 
     /// Add a new worktree
+    ///
+    /// Without arguments: interactive branch picker to select which branch to create worktree for.
+    /// With branch argument: creates worktree for the specified branch.
     Add {
-        branch: String,
+        /// Branch to create worktree for (optional - interactive picker if not provided)
+        branch: Option<String>,
 
         /// Path to create the worktree in
         #[arg(short, long)]
@@ -74,8 +78,12 @@ pub enum Command {
     },
 
     /// Remove a worktree (by branch name or path)
+    ///
+    /// Without arguments: interactive picker to select which worktree to remove.
+    /// With target argument: removes the specified worktree.
     Remove {
-        target: String,
+        /// Worktree to remove (branch name or path) - optional, interactive picker if not provided
+        target: Option<String>,
 
         /// Skip confirmation
         #[arg(long)]
