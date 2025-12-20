@@ -135,8 +135,6 @@ pub enum Command {
         json: bool,
     },
 
-
-
     /// Agent-friendly context and status commands
     #[command(long_about = include_str!("help/agent.md"))]
     Agent {
@@ -153,9 +151,9 @@ pub enum Command {
     ///   wt config ~/projects ~/work
     ///   wt list --all               # List worktrees across all discovered repos
     ///   wt interactive --all        # Interactive picker across all repos
-    Config { 
+    Config {
         /// Paths to search for git repositories
-        paths: Vec<String> 
+        paths: Vec<String>,
     },
 }
 
@@ -181,5 +179,3 @@ pub enum AgentCommand {
     /// Includes CLI quick reference, JSON schemas, and common workflows.
     Onboard,
 }
-
-

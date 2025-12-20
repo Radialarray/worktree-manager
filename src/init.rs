@@ -140,6 +140,9 @@ fn shell_config_path(shell: Shell) -> Result<PathBuf> {
 }
 
 /// Check if the config file already has wt integration.
+///
+/// This checks for the actual functional code (wt() function or eval line),
+/// not just the marker comment, to ensure the integration actually works.
 fn is_already_configured(config_path: &PathBuf) -> Result<bool> {
     if !config_path.exists() {
         return Ok(false);
@@ -148,12 +151,18 @@ fn is_already_configured(config_path: &PathBuf) -> Result<bool> {
     let contents = fs::read_to_string(config_path)
         .with_context(|| format!("failed to read {}", config_path.display()))?;
 
-    // Check for our marker or the eval line
-    Ok(contents.contains(MARKER)
+    // Check for the actual functional code that provides wt integration.
+    // We look for the wt() function definition or the eval/source lines,
+    // NOT just the marker comment (which provides no functionality on its own).
+    Ok(
+        // Bash/Zsh: check for the wt() function definition
+        (contents.contains("wt()") && contents.contains("__wt_cd"))
+        // Fish: check for the wt function definition
+        || (contents.contains("function wt") && contents.contains("function __wt_cd"))
+        // Also accept the eval/source lines as indicators
         || contents.contains("eval \"$(wt init")
-        || contents.contains("wt init fish | source")
-        || contents.contains("wt init zsh)")
-        || contents.contains("wt init bash)"))
+        || contents.contains("wt init fish | source"),
+    )
 }
 
 /// Get the integration line for a shell (what we show the user).
@@ -630,5 +639,74 @@ mod tests {
         assert_eq!(shell_name(Shell::Zsh), "zsh");
         assert_eq!(shell_name(Shell::Bash), "bash");
         assert_eq!(shell_name(Shell::Fish), "fish");
+    }
+
+    #[test]
+    fn test_is_already_configured_detects_functional_code() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        // Test 1: Empty file should not be considered configured
+        let mut temp_file = NamedTempFile::new().unwrap();
+        let path = temp_file.path().to_path_buf();
+        assert!(!is_already_configured(&path).unwrap());
+
+        // Test 2: Marker comment alone should NOT be considered configured (the bug we're fixing)
+        writeln!(temp_file, "# wt shell integration").unwrap();
+        temp_file.flush().unwrap();
+        assert!(
+            !is_already_configured(&path).unwrap(),
+            "Marker comment alone should not indicate configuration"
+        );
+
+        // Test 3: Marker + eval line should be considered configured
+        writeln!(temp_file, "eval \"$(wt init zsh)\"").unwrap();
+        temp_file.flush().unwrap();
+        assert!(
+            is_already_configured(&path).unwrap(),
+            "Marker + eval line should indicate configuration"
+        );
+
+        // Test 4: Just eval line (without marker) should be considered configured
+        let mut temp_file2 = NamedTempFile::new().unwrap();
+        let path2 = temp_file2.path().to_path_buf();
+        writeln!(temp_file2, "eval \"$(wt init bash)\"").unwrap();
+        temp_file2.flush().unwrap();
+        assert!(
+            is_already_configured(&path2).unwrap(),
+            "Eval line alone should indicate configuration"
+        );
+
+        // Test 5: Full wt() function for zsh/bash should be considered configured
+        let mut temp_file3 = NamedTempFile::new().unwrap();
+        let path3 = temp_file3.path().to_path_buf();
+        writeln!(temp_file3, "wt() {{\n  __wt_cd \"$1\"\n}}").unwrap();
+        writeln!(temp_file3, "__wt_cd() {{ echo 'test'; }}").unwrap();
+        temp_file3.flush().unwrap();
+        assert!(
+            is_already_configured(&path3).unwrap(),
+            "wt() function definition should indicate configuration"
+        );
+
+        // Test 6: Fish function should be considered configured
+        let mut temp_file4 = NamedTempFile::new().unwrap();
+        let path4 = temp_file4.path().to_path_buf();
+        writeln!(temp_file4, "function wt\n  echo 'test'\nend").unwrap();
+        writeln!(temp_file4, "function __wt_cd\n  echo 'test'\nend").unwrap();
+        temp_file4.flush().unwrap();
+        assert!(
+            is_already_configured(&path4).unwrap(),
+            "Fish function definition should indicate configuration"
+        );
+
+        // Test 7: Fish source line should be considered configured
+        let mut temp_file5 = NamedTempFile::new().unwrap();
+        let path5 = temp_file5.path().to_path_buf();
+        writeln!(temp_file5, "wt init fish | source").unwrap();
+        temp_file5.flush().unwrap();
+        assert!(
+            is_already_configured(&path5).unwrap(),
+            "Fish source line should indicate configuration"
+        );
     }
 }
