@@ -51,6 +51,14 @@ if [ -d "$ARTIFACT_DIR" ]; then
   while IFS= read -r -d '' f; do
     base=$(basename "$f")
     url="https://github.com/${REPO}/releases/download/${TAG}/${base}"
+    # Skip checksum files first
+    case "$base" in
+      *.sha256|*.sha512|*.sha3-256|*.sha3-512|*.blake2*)
+        echo "$(cat "$f")" >> "$CHECKSUMS_FILE"
+        continue
+        ;;
+    esac
+    # Then process other files
     case "$base" in
       *.tar.*|*.zip)
         human=$(map_target "$base")
@@ -60,11 +68,8 @@ if [ -d "$ARTIFACT_DIR" ]; then
       *installer.sh|*installer.ps1|*.rb)
         INSTALLERS+=("- [${base}](${url})")
         ;;
-      *.sha256|*.sha512|*.sha3-256|*.sha3-512|*.blake2*)
-        echo "$(cat "$f")" >> "$CHECKSUMS_FILE"
-        ;;
       *)
-        ;;
+        ;; # ignore other files
     esac
   done < <(find "$ARTIFACT_DIR" -type f -print0)
 fi
