@@ -16,12 +16,31 @@ A fast, intuitive CLI for managing Git worktrees. Built for both humans (interac
 
 - Git 2.7.0+
 - [fzf](https://github.com/junegunn/fzf#installation) (for interactive mode)
-- Rust 1.70+ (to build from source)
+
+### Homebrew (macOS/Linux) - Recommended
+
+```bash
+brew install Radialarray/worktree-manager/worktree-manager
+```
+
+Or tap first, then install:
+
+```bash
+brew tap Radialarray/worktree-manager
+brew install worktree-manager
+```
+
+After installation, set up shell integration:
+
+```bash
+wt init  # Auto-detects your shell and configures it
+source ~/.zshrc  # or ~/.bashrc, or open new terminal
+```
 
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/worktree-manager.git
+git clone https://github.com/Radialarray/worktree-manager.git
 cd worktree-manager
 cargo install --path .
 wt init  # Set up shell integration
