@@ -158,7 +158,15 @@ fn extract_path(line: &str) -> Result<String> {
     let parts: Vec<&str> = line.split("  ").collect();
 
     if parts.len() >= 2 {
-        Ok(parts[1].to_string())
+        let path = parts[1].trim();
+        if path.is_empty() {
+            return Err(WtError::user_error(format!(
+                "extracted empty path from fzf output: {}",
+                line
+            ))
+            .into());
+        }
+        Ok(path.to_string())
     } else {
         Err(WtError::user_error(format!("failed to extract path from fzf output: {}", line)).into())
     }
@@ -232,7 +240,15 @@ fn extract_path_from_all(line: &str) -> Result<String> {
         .collect();
 
     if parts.len() >= 3 {
-        Ok(parts[2].to_string())
+        let path = parts[2];
+        if path.is_empty() {
+            return Err(WtError::user_error(format!(
+                "extracted empty path from fzf output: {}",
+                line
+            ))
+            .into());
+        }
+        Ok(path.to_string())
     } else {
         Err(WtError::user_error(format!("failed to extract path from fzf output: {}", line)).into())
     }
@@ -447,6 +463,18 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_path_empty_path() {
+        let line = "main  ";
+        assert!(extract_path(line).is_err());
+    }
+
+    #[test]
+    fn test_extract_path_only_whitespace() {
+        let line = "main     ";
+        assert!(extract_path(line).is_err());
+    }
+
+    #[test]
     fn test_extract_path_from_all_success() {
         let line = "worktree-manager  main       /Users/user/dev/worktree-manager";
         let path = extract_path_from_all(line).unwrap();
@@ -463,6 +491,18 @@ mod tests {
     #[test]
     fn test_extract_path_from_all_failure() {
         let line = "only-two  columns";
+        assert!(extract_path_from_all(line).is_err());
+    }
+
+    #[test]
+    fn test_extract_path_from_all_empty_path() {
+        let line = "repo  branch  ";
+        assert!(extract_path_from_all(line).is_err());
+    }
+
+    #[test]
+    fn test_extract_path_from_all_only_whitespace() {
+        let line = "repo  branch     ";
         assert!(extract_path_from_all(line).is_err());
     }
 }
