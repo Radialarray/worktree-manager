@@ -155,7 +155,9 @@ fn format_branch_name(wt: &crate::worktree::Worktree) -> String {
 /// Extract the path from a formatted candidate line (second column).
 fn extract_path(line: &str) -> Result<String> {
     // Split on two spaces (the separator we used)
-    let parts: Vec<&str> = line.split("  ").collect();
+    // Note: The branch is padded, so there may be many consecutive spaces
+    // We filter out empty parts to get just the branch and path
+    let parts: Vec<&str> = line.split("  ").filter(|s| !s.is_empty()).collect();
 
     if parts.len() >= 2 {
         let path = parts[1].trim();
@@ -472,6 +474,22 @@ mod tests {
     fn test_extract_path_only_whitespace() {
         let line = "main     ";
         assert!(extract_path(line).is_err());
+    }
+
+    #[test]
+    fn test_extract_path_with_padding() {
+        // Simulate the actual format with padding between branch and path
+        let line = "main          /tmp/repo/main";
+        let path = extract_path(line).unwrap();
+        assert_eq!(path, "/tmp/repo/main");
+    }
+
+    #[test]
+    fn test_extract_path_short_branch_padded() {
+        // Short branch name with lots of padding (realistic case)
+        let line = "main              /Users/svenlochner/dev/time-budgeted-todo-m";
+        let path = extract_path(line).unwrap();
+        assert_eq!(path, "/Users/svenlochner/dev/time-budgeted-todo-m");
     }
 
     #[test]
