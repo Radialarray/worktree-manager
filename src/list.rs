@@ -181,7 +181,11 @@ fn pretty_ref(r: Option<&str>) -> String {
 
 fn display_path(repo_root: &Path, path: &Path) -> String {
     path.strip_prefix(repo_root)
-        .map(|p| p.to_string_lossy().to_string())
+        .map(|p| {
+            let s = p.to_string_lossy().to_string();
+            // If the stripped path is empty, it means this is the main worktree (repo root)
+            if s.is_empty() { ".".to_string() } else { s }
+        })
         .unwrap_or_else(|_| path.to_string_lossy().to_string())
 }
 
