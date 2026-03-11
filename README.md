@@ -110,6 +110,7 @@ wt list --json       # Machine-readable output
 # Add worktree
 wt add feature-x                # Auto-detect path
 wt add feature-x -p ~/custom    # Custom path
+wt add feature-x --beads        # Bootstrap .beads/redirect
 wt add feature-x --track origin # Track remote
 
 # Remove worktree
@@ -204,7 +205,7 @@ beads:
 
 - **FZF appearance**: Edit config.yaml to customize height, layout, preview window
 - **Auto-discovery**: Use `wt config <paths...>` or edit `auto_discovery.paths`
-- **Beads integration**: Set `beads.enabled: true` and `beads.redirect_mode: shared-redirect`
+- **Beads integration**: Set `beads.enabled: true` and `beads.redirect_mode: shared-redirect`, or use `wt add --beads`
 - **Editor**: Ctrl-E uses `$EDITOR` environment variable (e.g., `export EDITOR=nvim`)
 
 ### Optional Beads Integration
@@ -215,6 +216,7 @@ Recommended model:
 - keep one canonical `.beads` directory in the main checkout
 - create worktrees only for larger isolated epics or separate feature lines
 - let `wt add` create `.beads/redirect` in new worktrees
+- use `wt add --beads` to force redirect bootstrapping for a specific worktree
 
 Enable it in `~/.config/worktree-manager/config.yaml`:
 

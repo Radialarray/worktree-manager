@@ -25,6 +25,7 @@ struct AddResult {
 pub fn interactive_add(
     path: Option<&str>,
     track: Option<&str>,
+    beads: bool,
     json: bool,
     quiet: bool,
 ) -> Result<()> {
@@ -55,7 +56,7 @@ pub fn interactive_add(
                 return Ok(());
             }
 
-            add_worktree(new_branch, path, track, json, quiet)
+            add_worktree(new_branch, path, track, beads, json, quiet)
         }
         Some(branch) => {
             // Strip remote prefix if present (e.g., "origin/feature" -> "feature")
@@ -68,7 +69,7 @@ pub fn interactive_add(
                 &branch
             };
 
-            add_worktree(branch_name, path, track, json, quiet)
+            add_worktree(branch_name, path, track, beads, json, quiet)
         }
         None => {
             // User cancelled
@@ -87,6 +88,7 @@ pub fn add_worktree(
     branch: &str,
     path: Option<&str>,
     track: Option<&str>,
+    beads: bool,
     json: bool,
     quiet: bool,
 ) -> Result<()> {
@@ -180,7 +182,7 @@ pub fn add_worktree(
         })?;
     }
 
-    let beads_redirect = configure_beads_redirect(&repo_root, &target_path)?;
+    let beads_redirect = configure_beads_redirect(&repo_root, &target_path, beads)?;
 
     if json {
         let result = AddResult {
@@ -201,9 +203,13 @@ pub fn add_worktree(
     Ok(())
 }
 
-fn configure_beads_redirect(repo_root: &Path, target_path: &Path) -> Result<Option<String>> {
+fn configure_beads_redirect(
+    repo_root: &Path,
+    target_path: &Path,
+    force_enable: bool,
+) -> Result<Option<String>> {
     let config = config::load()?;
-    if !config.beads.enabled || config.beads.redirect_mode != "shared-redirect" {
+    if !(force_enable || config.beads.enabled) || config.beads.redirect_mode != "shared-redirect" {
         return Ok(None);
     }
 

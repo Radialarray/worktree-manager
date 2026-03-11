@@ -5,7 +5,7 @@
 | Command | Description | Flags |
 |---------|-------------|-------|
 | `wt list [--all]` | List worktrees | `--json` |
-| `wt add <branch>` | Create worktree | `--json`, `--quiet` |
+| `wt add <branch>` | Create worktree | `--json`, `--quiet`, `--beads` |
 | `wt remove <target>` | Remove worktree | `--json`, `--quiet`, `--force` |
 | `wt prune` | Clean stale worktrees | `--json`, `--quiet` |
 | `wt agent context` | Full worktree state | `--json` |
@@ -53,7 +53,7 @@ wt prune --quiet --json
 
 **One Agent Per Worktree:** Each agent creates and owns a separate worktree for parallel work.
 
-**Beads-aware workflow:** If the repo uses `bd`, use worktrees for larger isolated epics or separate feature lines, not every small task. Keep one canonical `.beads` directory and let secondary worktrees use `.beads/redirect`.
+**Beads-aware workflow:** If the repo uses `bd`, use worktrees for larger isolated epics or separate feature lines, not every small task. Keep one canonical `.beads` directory and let secondary worktrees use `.beads/redirect`. Use `wt add --beads` to bootstrap it explicitly, or enable it in config.
 
 ```bash
 # Agent 1

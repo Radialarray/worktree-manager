@@ -6,6 +6,7 @@ With branch argument: creates worktree for the specified branch.
 Examples:
   wt add feature-x              # Create worktree for branch
   wt add feature-x -p ~/custom  # Custom path
+  wt add feature-x --beads      # Bootstrap .beads/redirect
   wt add feature-x --json       # JSON output
   wt add feature-x --quiet      # Non-interactive (for scripts)
 

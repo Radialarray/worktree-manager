@@ -83,11 +83,16 @@ fn run() -> Result<()> {
             branch,
             path,
             track,
+            beads,
             json,
             quiet,
         } => match branch {
-            Some(b) => crate::add::add_worktree(&b, path.as_deref(), track.as_deref(), json, quiet),
-            None => crate::add::interactive_add(path.as_deref(), track.as_deref(), json, quiet),
+            Some(b) => {
+                crate::add::add_worktree(&b, path.as_deref(), track.as_deref(), beads, json, quiet)
+            }
+            None => {
+                crate::add::interactive_add(path.as_deref(), track.as_deref(), beads, json, quiet)
+            }
         },
         Command::Remove {
             target,

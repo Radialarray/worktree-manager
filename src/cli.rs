@@ -85,6 +85,10 @@ pub enum Command {
         #[arg(long)]
         track: Option<String>,
 
+        /// Bootstrap a .beads/redirect in the new worktree
+        #[arg(long)]
+        beads: bool,
+
         /// Output as JSON
         #[arg(long)]
         json: bool,
