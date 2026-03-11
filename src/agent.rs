@@ -8,6 +8,7 @@ struct AgentContext {
     current_worktree: Option<WorktreeInfo>,
     other_worktrees: Vec<WorktreeInfo>,
     repository: RepositoryInfo,
+    beads: BeadsInfo,
 }
 
 #[derive(Serialize)]
@@ -22,6 +23,12 @@ struct WorktreeInfo {
 struct RepositoryInfo {
     root: String,
     total_worktrees: usize,
+}
+
+#[derive(Serialize)]
+struct BeadsInfo {
+    available: bool,
+    canonical_dir: Option<String>,
 }
 
 /// Display compact context about current worktree state for agents.
@@ -72,6 +79,7 @@ pub fn show_context(json: bool) -> Result<(), WtError> {
                 root: repo_root.display().to_string(),
                 total_worktrees: worktrees.len(),
             },
+            beads: beads_info(&repo_root),
         };
         let json_str = serde_json::to_string_pretty(&context)
             .map_err(|e| WtError::io_error_with_source("failed to serialize JSON", e.into()))?;
@@ -118,6 +126,15 @@ fn print_human_readable_context(
     println!("Total worktrees: {}", total);
     println!();
 
+    let beads = beads_info(repo_root);
+    if beads.available {
+        println!("Beads: shared database available");
+        if let Some(path) = beads.canonical_dir {
+            println!("Canonical .beads: {}", path);
+        }
+        println!();
+    }
+
     println!("## Quick Commands");
     println!();
     println!("  wt                  # Interactive picker");
@@ -125,8 +142,19 @@ fn print_human_readable_context(
     println!("  wt add <branch>     # Create new worktree");
     println!("  wt remove <target>  # Remove worktree");
     println!("  wt prune            # Clean stale worktrees");
+    println!("  bd where            # Verify shared beads database");
 
     Ok(())
+}
+
+fn beads_info(repo_root: &std::path::Path) -> BeadsInfo {
+    let canonical_dir = repo_root.join(".beads");
+    BeadsInfo {
+        available: canonical_dir.is_dir(),
+        canonical_dir: canonical_dir
+            .is_dir()
+            .then(|| canonical_dir.display().to_string()),
+    }
 }
 
 /// Check if a worktree has uncommitted changes.

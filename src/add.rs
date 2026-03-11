@@ -1,3 +1,4 @@
+use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -6,7 +7,7 @@ use anyhow::Result;
 use serde::Serialize;
 
 use crate::error::WtError;
-use crate::{git, process};
+use crate::{config, git, process};
 
 /// Result of adding a worktree (for JSON output)
 #[derive(Serialize)]
@@ -16,6 +17,8 @@ struct AddResult {
     path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     tracking: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    beads_redirect: Option<String>,
 }
 
 /// Interactive add: show fzf picker with available branches, then create worktree.
@@ -177,19 +180,51 @@ pub fn add_worktree(
         })?;
     }
 
+    let beads_redirect = configure_beads_redirect(&repo_root, &target_path)?;
+
     if json {
         let result = AddResult {
             success: true,
             branch: branch.to_string(),
             path: target_path.to_string_lossy().to_string(),
             tracking: track.map(|r| format!("{}/{}", r, branch)),
+            beads_redirect,
         };
         println!("{}", serde_json::to_string(&result)?);
     } else if !quiet {
         eprintln!("Worktree created successfully");
+        if let Some(redirect) = beads_redirect {
+            eprintln!("Configured beads redirect: {}", redirect);
+        }
     }
 
     Ok(())
+}
+
+fn configure_beads_redirect(repo_root: &Path, target_path: &Path) -> Result<Option<String>> {
+    let config = config::load()?;
+    if !config.beads.enabled || config.beads.redirect_mode != "shared-redirect" {
+        return Ok(None);
+    }
+
+    let canonical_beads_dir = repo_root.join(".beads");
+    if !canonical_beads_dir.is_dir() {
+        return Ok(None);
+    }
+
+    let target_beads_dir = target_path.join(".beads");
+    if target_beads_dir.exists() {
+        return Ok(None);
+    }
+
+    fs::create_dir_all(&target_beads_dir)?;
+
+    let redirect_target = pathdiff::diff_paths(&canonical_beads_dir, &target_beads_dir)
+        .unwrap_or(canonical_beads_dir.clone());
+    let redirect_path = target_beads_dir.join("redirect");
+    fs::write(&redirect_path, format!("{}\n", redirect_target.display()))?;
+
+    Ok(Some(redirect_path.display().to_string()))
 }
 
 /// Calculate the default path for a worktree based on the branch name.

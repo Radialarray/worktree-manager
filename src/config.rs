@@ -6,9 +6,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Config {
+    #[serde(default = "default_version")]
     pub version: String,
+    #[serde(default)]
     pub fzf: FzfConfig,
+    #[serde(default)]
     pub auto_discovery: AutoDiscoveryConfig,
+    #[serde(default)]
+    pub beads: BeadsConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -24,14 +29,25 @@ pub struct AutoDiscoveryConfig {
     pub paths: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BeadsConfig {
+    pub enabled: bool,
+    pub redirect_mode: String,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
             version: "1.0.0".to_string(),
             fzf: FzfConfig::default(),
             auto_discovery: AutoDiscoveryConfig::default(),
+            beads: BeadsConfig::default(),
         }
     }
+}
+
+fn default_version() -> String {
+    "1.0.0".to_string()
 }
 
 impl Default for FzfConfig {
@@ -49,6 +65,15 @@ impl Default for AutoDiscoveryConfig {
         Self {
             enabled: true,
             paths: Vec::new(),
+        }
+    }
+}
+
+impl Default for BeadsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            redirect_mode: "off".to_string(),
         }
     }
 }
@@ -116,6 +141,8 @@ mod tests {
         assert_eq!(config.fzf.preview_window, "right:60%");
         assert!(config.auto_discovery.enabled);
         assert!(config.auto_discovery.paths.is_empty());
+        assert!(!config.beads.enabled);
+        assert_eq!(config.beads.redirect_mode, "off");
     }
 
     #[test]
@@ -125,6 +152,7 @@ mod tests {
         assert!(yaml.contains("version:"));
         assert!(yaml.contains("fzf:"));
         assert!(yaml.contains("auto_discovery:"));
+        assert!(yaml.contains("beads:"));
     }
 
     #[test]
@@ -140,6 +168,9 @@ auto_discovery:
   paths:
     - /home/user/projects
     - /home/user/work
+beads:
+  enabled: true
+  redirect_mode: shared-redirect
 "#;
         let config: Config = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(config.version, "1.0.0");
@@ -147,6 +178,8 @@ auto_discovery:
         assert_eq!(config.fzf.preview_window, "right:70%");
         assert!(!config.auto_discovery.enabled);
         assert_eq!(config.auto_discovery.paths.len(), 2);
+        assert!(config.beads.enabled);
+        assert_eq!(config.beads.redirect_mode, "shared-redirect");
     }
 
     #[test]

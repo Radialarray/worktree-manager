@@ -11,6 +11,7 @@
 | `wt agent context` | Full worktree state | `--json` |
 | `wt agent status` | Minimal status | `--json` |
 | `wt config <paths>` | Set auto-discovery paths | - |
+| `bd where` | Verify shared beads DB | - |
 
 **Key flags:** `--json` (machine-readable), `--quiet` (non-interactive), `--force` (skip confirmations)
 
@@ -52,6 +53,8 @@ wt prune --quiet --json
 
 **One Agent Per Worktree:** Each agent creates and owns a separate worktree for parallel work.
 
+**Beads-aware workflow:** If the repo uses `bd`, use worktrees for larger isolated epics or separate feature lines, not every small task. Keep one canonical `.beads` directory and let secondary worktrees use `.beads/redirect`.
+
 ```bash
 # Agent 1
 wt add feature-auth --json --quiet && cd /path/to/feature-auth
@@ -69,9 +72,12 @@ wt remove feature-api --force --quiet
 **Best Practices:**
 - ✅ Run `wt agent context` at session start
 - ✅ Each agent owns exactly one worktree
+- ✅ Use worktrees for larger isolated epics/feature lines
+- ✅ Use `bd where` to verify shared beads resolution when enabled
 - ✅ Clean up temporary worktrees when done
 - ❌ Don't `cd` between worktrees in one session
 - ❌ Don't modify the same worktree from multiple agents
+- ❌ Don't create a worktree for every small task by default
 
 ## Configuration
 
@@ -83,3 +89,11 @@ wt list --all
 ```
 
 Config file: `~/.config/worktree-manager/config.yaml` (optional, for FZF customization)
+
+Optional beads integration:
+
+```yaml
+beads:
+  enabled: true
+  redirect_mode: shared-redirect
+```

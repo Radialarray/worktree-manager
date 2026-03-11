@@ -8,6 +8,7 @@ A fast, intuitive CLI for managing Git worktrees. Built for both humans (interac
 - **Shell Integration** - Press Enter to cd, Ctrl-E to open in editor
 - **Agent-Friendly** - JSON output, `--quiet` mode, specialized agent commands
 - **Multi-Repo Support** - Discover and manage worktrees across projects
+- **Optional Beads Integration** - Auto-create `.beads/redirect` for shared issue state
 - **Simple & Fast** - Written in Rust, minimal configuration
 
 ## Installation
@@ -194,13 +195,34 @@ fzf:
 auto_discovery:
   enabled: true
   paths: []
+beads:
+  enabled: false
+  redirect_mode: off
 ```
 
 ### Customization
 
 - **FZF appearance**: Edit config.yaml to customize height, layout, preview window
 - **Auto-discovery**: Use `wt config <paths...>` or edit `auto_discovery.paths`
+- **Beads integration**: Set `beads.enabled: true` and `beads.redirect_mode: shared-redirect`
 - **Editor**: Ctrl-E uses `$EDITOR` environment variable (e.g., `export EDITOR=nvim`)
+
+### Optional Beads Integration
+
+If a repository uses `bd`, `wt` can bootstrap shared issue tracking across larger feature worktrees.
+
+Recommended model:
+- keep one canonical `.beads` directory in the main checkout
+- create worktrees only for larger isolated epics or separate feature lines
+- let `wt add` create `.beads/redirect` in new worktrees
+
+Enable it in `~/.config/worktree-manager/config.yaml`:
+
+```yaml
+beads:
+  enabled: true
+  redirect_mode: shared-redirect
+```
 
 ## Troubleshooting
 
